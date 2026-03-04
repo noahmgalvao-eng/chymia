@@ -314,12 +314,6 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
   const rawSublimationTargetTemp = isGasLike ? Math.max(1, sublimationTemp - 40) : sublimationTemp + 40;
   const supercriticalTargetTemp = criticalPoint ? criticalPoint.tempK + 25 : physicsState.temperature;
   const tripleTargetTemp = triplePoint?.tempK ?? physicsState.temperature;
-  const triplePressureLabel = hasTriplePoint
-    ? fmt(triplePoint!.pressurePa / 1000, ' kPa')
-    : 'N/A';
-  const tripleTempLabel = hasTriplePoint
-    ? fmt(triplePoint!.tempK, ' K')
-    : 'N/A';
   const criticalTempLabel = hasCriticalPoint
     ? fmt(criticalPoint!.tempK, ' K')
     : 'N/A';
@@ -329,7 +323,6 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
   const sublimationPhaseFrom = isGasLike ? 'gasosa' : 'solida';
   const sublimationPhaseTo = isGasLike ? 'solida' : 'gasosa';
   const sublimationTemperatureCondition = isGasLike ? 'abaixo' : 'acima';
-  const liquefyExplanation = `A fase liquida a partir da solida ocorre quando a temperatura do sistema esta acima da temperatura de fusao (${fmt(actionMeltingPoint, ' K')}), abaixo da temperatura de ebulicao (${fmt(actionBoilingPoint, ' K')}) e acima da pressao de ponto triplo (${triplePressureLabel}).`;
 
   const isSolidLikePrediction = (state: MatterState) =>
     [MatterState.SOLID, MatterState.EQUILIBRIUM_MELT].includes(state);
@@ -444,6 +437,13 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
     'kPa',
     typeof triplePoint?.pressurePa === 'number' ? triplePoint.pressurePa / 1000 : undefined,
   );
+  const tripleTempLabel = triplePointTemp.na
+    ? 'N/A'
+    : `${triplePointTemp.value} K`;
+  const triplePressureLabel = triplePointPress.na
+    ? 'N/A'
+    : `${triplePointPress.value} kPa`;
+  const liquefyExplanation = `A fase liquida a partir da solida ocorre quando a temperatura do sistema esta acima da temperatura de fusao (${fmt(actionMeltingPoint, ' K')}), abaixo da temperatura de ebulicao (${fmt(actionBoilingPoint, ' K')}) e acima da pressao de ponto triplo (${triplePressureLabel}).`;
   const criticalPointTemp = parseDisplayValue(element.properties.criticalPointTempDisplay, 'K', criticalPoint?.tempK);
   const criticalPointPress = parseDisplayValue(
     element.properties.criticalPointPressDisplay,

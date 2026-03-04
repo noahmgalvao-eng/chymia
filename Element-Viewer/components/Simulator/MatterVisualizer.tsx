@@ -148,6 +148,120 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
         };
     }, [state, meltProgress, solid, liquid, gas, adjustedSolidColor, adjustedLiquidColor, adjustedGasColor, showParticles]);
 
+    const shouldResolveTrappedOverlaps =
+        showParticles &&
+        [
+            MatterState.SOLID,
+            MatterState.MELTING,
+            MatterState.EQUILIBRIUM_MELT,
+            MatterState.LIQUID,
+            MatterState.EQUILIBRIUM_TRIPLE,
+        ].includes(state);
+
+    const trappedParticleRenderMap = useMemo(() => {
+        const resolved = new Map<number, { x: number; y: number }>();
+        if (!shouldResolveTrappedOverlaps) return resolved;
+
+        const trappedParticles = particles.filter((particle) => particle.state === ParticleState.TRAPPED);
+        if (trappedParticles.length <= 1) return resolved;
+
+        const vibrationAmp = Math.sqrt(Math.max(0, physics.temperature)) * 0.15;
+        const time = physics.simTime * 25;
+
+        const nodes = trappedParticles.map((particle) => {
+            const jitterX = Math.sin(time + particle.id * 123) * vibrationAmp;
+            const jitterY = Math.cos(time + particle.id * 321) * vibrationAmp;
+            const targetX = particle.x + jitterX;
+            const targetY = particle.y + jitterY;
+
+            return {
+                id: particle.id,
+                r: particle.r,
+                x: targetX,
+                y: targetY,
+                targetX,
+                targetY,
+            };
+        });
+
+        const ITERATIONS = 8;
+        const ANCHOR_BLEND = 0.15;
+        const FINAL_SEPARATION_PASSES = 8;
+        const OVERLAP_TOLERANCE = 1e-3;
+        const DISTANCE_EPSILON = 1e-6;
+
+        // Keep current vibration style as the target while enforcing minimum particle separation.
+        const applySeparationPass = (): number => {
+            let maxOverlap = 0;
+
+            for (let i = 0; i < nodes.length; i += 1) {
+                const p1 = nodes[i];
+
+                for (let j = i + 1; j < nodes.length; j += 1) {
+                    const p2 = nodes[j];
+                    const dx = p2.x - p1.x;
+                    const dy = p2.y - p1.y;
+                    const minDist = p1.r + p2.r;
+                    const minDistSq = minDist * minDist;
+                    const distSq = (dx * dx) + (dy * dy);
+
+                    if (distSq >= minDistSq) continue;
+
+                    let nx = 1;
+                    let ny = 0;
+                    let dist = Math.sqrt(distSq);
+
+                    if (dist > DISTANCE_EPSILON) {
+                        nx = dx / dist;
+                        ny = dy / dist;
+                    } else {
+                        const seed = (p1.id * 92821) + (p2.id * 68917);
+                        const angle = (seed % 360) * (Math.PI / 180);
+                        nx = Math.cos(angle);
+                        ny = Math.sin(angle);
+                        dist = 0;
+                    }
+
+                    const overlap = minDist - dist;
+                    if (overlap > maxOverlap) {
+                        maxOverlap = overlap;
+                    }
+                    const correction = overlap * 0.5;
+
+                    p1.x -= nx * correction;
+                    p1.y -= ny * correction;
+                    p2.x += nx * correction;
+                    p2.y += ny * correction;
+                }
+            }
+
+            return maxOverlap;
+        };
+
+        for (let iter = 0; iter < ITERATIONS; iter += 1) {
+            applySeparationPass();
+
+            for (const node of nodes) {
+                node.x = interpolateValue(node.x, node.targetX, ANCHOR_BLEND);
+                node.y = interpolateValue(node.y, node.targetY, ANCHOR_BLEND);
+            }
+        }
+
+        // Final strict pass to guarantee non-overlap in x-ray solid/liquid rendering.
+        for (let pass = 0; pass < FINAL_SEPARATION_PASSES; pass += 1) {
+            const maxOverlap = applySeparationPass();
+            if (maxOverlap < OVERLAP_TOLERANCE) {
+                break;
+            }
+        }
+
+        for (const node of nodes) {
+            resolved.set(node.id, { x: node.x, y: node.y });
+        }
+
+        return resolved;
+    }, [particles, physics.simTime, physics.temperature, shouldResolveTrappedOverlaps]);
+
     // --- VISIBILITY LOGIC ---
     const hasTrappedParticles = useMemo(() => {
         return particles.some(p => p.state === ParticleState.TRAPPED);
@@ -478,12 +592,18 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
                             fill = state === MatterState.SOLID || state === MatterState.SUBLIMATION || state === MatterState.EQUILIBRIUM_SUB ? adjustedSolidColor : adjustedLiquidColor;
                             opacity = 0.9;
 
-                            const vibrationAmp = Math.sqrt(physics.temperature) * 0.15;
-                            const time = physics.simTime * 25;
-                            const jitterX = Math.sin(time + p.id * 123) * vibrationAmp;
-                            const jitterY = Math.cos(time + p.id * 321) * vibrationAmp;
-                            renderX += jitterX;
-                            renderY += jitterY;
+                            const resolvedTrappedPosition = trappedParticleRenderMap.get(p.id);
+                            if (resolvedTrappedPosition) {
+                                renderX = resolvedTrappedPosition.x;
+                                renderY = resolvedTrappedPosition.y;
+                            } else {
+                                const vibrationAmp = Math.sqrt(physics.temperature) * 0.15;
+                                const time = physics.simTime * 25;
+                                const jitterX = Math.sin(time + p.id * 123) * vibrationAmp;
+                                const jitterY = Math.cos(time + p.id * 321) * vibrationAmp;
+                                renderX += jitterX;
+                                renderY += jitterY;
+                            }
                         }
 
                         return (

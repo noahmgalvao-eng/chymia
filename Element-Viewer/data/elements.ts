@@ -155,6 +155,13 @@ const convertPressureDisplayToKpa = (rawValue: string | undefined, unitRaw: unkn
   return `${normalized}${isEstimated ? "*" : ""}`;
 };
 
+const ESTIMATED_TRIPLE_PRESSURE_KPA = 1e-6;
+
+const formatEstimatedValue = (value: number): string => {
+  if (!Number.isFinite(value)) return "N/A";
+  return `${parseFloat(value.toPrecision(10)).toString()}*`;
+};
+
 // Adapter: Transform Raw JSON (Layer 1) + Scientific (Layer 2) + Custom (Layer 3)
 export const ELEMENTS: ChemicalElement[] = SOURCE_DATA.elements.map((source: any) => {
 
@@ -320,23 +327,31 @@ export const ELEMENTS: ChemicalElement[] = SOURCE_DATA.elements.map((source: any
   const meltTempSource = meltTempDisplay.str === "N/A" ? undefined : meltTempDisplay.source;
   const boilTempSource = boilTempDisplay.str === "N/A" ? undefined : boilTempDisplay.source;
 
-  const tpTempCalcRes = parseSciValue(toSciInput(tripleTempField.calcRaw), -999);
   const tpTempDisplayRes = parseSciValue(toSciInput(tripleTempField.displayRaw), -999);
-  const tpPressCalcRes = parseSciValue(toSciInput(triplePressField.calcRaw), -999);
   const tpPressDisplayRes = parseSciValue(toSciInput(triplePressField.displayRaw), -999);
+  const hasTripleTempDisplay = Boolean(tpTempDisplayRes.str && tpTempDisplayRes.str !== "N/A");
+  const hasTriplePressDisplay = Boolean(tpPressDisplayRes.str && tpPressDisplayRes.str !== "N/A");
+
+  const tpTempDisplayValue = hasTripleTempDisplay
+    ? (tpTempDisplayRes.str as string)
+    : formatEstimatedValue(meltTempCalc.val);
+  const tpPressDisplayValue = hasTriplePressDisplay
+    ? (tpPressDisplayRes.str as string)
+    : `${ESTIMATED_TRIPLE_PRESSURE_KPA}*`;
+
+  // Triple point runtime values must be derived from the same values shown in the property list.
+  const tpTempResolved = parseSciValue(tpTempDisplayValue, meltTempCalc.val);
+  const tpPressResolved = parseSciValue(tpPressDisplayValue, ESTIMATED_TRIPLE_PRESSURE_KPA);
 
   const triplePointObj = {
-    tempK: tpTempCalcRes.val > 0 ? tpTempCalcRes.val : meltTempCalc.val,
-    pressurePa: tpPressCalcRes.val > 0 ? tpPressCalcRes.val * 1000 : 0
+    tempK: tpTempResolved.val > 0 ? tpTempResolved.val : meltTempCalc.val,
+    pressurePa: (tpPressResolved.val > 0 ? tpPressResolved.val : ESTIMATED_TRIPLE_PRESSURE_KPA) * 1000
   };
 
   const tpSource =
-    (tpTempDisplayRes.str && tpTempDisplayRes.str !== "N/A" ? tpTempDisplayRes.source : undefined) ??
-    (tpPressDisplayRes.str && tpPressDisplayRes.str !== "N/A" ? tpPressDisplayRes.source : undefined);
-  const tpTempDisplayValue =
-    tpTempDisplayRes.str && tpTempDisplayRes.str !== "N/A" ? tpTempDisplayRes.str : "N/A";
-  const tpPressDisplayValue =
-    tpPressDisplayRes.str && tpPressDisplayRes.str !== "N/A" ? tpPressDisplayRes.str : "N/A";
+    (hasTripleTempDisplay ? tpTempDisplayRes.source : undefined) ??
+    (hasTriplePressDisplay ? tpPressDisplayRes.source : undefined) ??
+    meltTempSource;
 
   const parseCriticalPressureValue = (
     input: unknown,

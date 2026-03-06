@@ -181,8 +181,11 @@ const syncEvaporationSlotAssignments = (
         }
         const slot = layout.slots[slotIndex];
         if (!slot) continue;
-        particle.homeX = slot.x;
-        particle.homeY = slot.y;
+        const followBlend = particle.state === ParticleState.TRAPPED
+            ? 0.28
+            : (particle.state === ParticleState.CONDENSING ? 0.36 : 0.22);
+        particle.homeX = interpolateValue(particle.homeX, slot.x, followBlend);
+        particle.homeY = interpolateValue(particle.homeY, slot.y, followBlend);
     }
 
     simState.evaporationLayoutKey = layout.key;
@@ -427,14 +430,14 @@ export const updateParticleSystem = ({
             syncEvaporationSlotAssignments(simState, evaporationLayout);
 
             const thermoTargetTrapped = effectiveParticleCount - Math.floor(effectiveBoilProgress * effectiveParticleCount);
-            const allowedTrapped = Math.min(thermoTargetTrapped, evaporationLayout.capacity);
+            const allowedTrapped = Math.max(0, Math.min(effectiveParticleCount, thermoTargetTrapped));
             let pinnedCoreCount = simState.particles.filter((particle) =>
                 particle.state === ParticleState.TRAPPED || particle.state === ParticleState.CONDENSING,
             ).length;
 
             if (pinnedCoreCount > allowedTrapped) {
                 const overTarget = pinnedCoreCount - allowedTrapped;
-                const releaseSteps = Math.max(1, Math.min(6, Math.ceil(overTarget * 0.5)));
+                const releaseSteps = Math.max(1, Math.min(4, Math.ceil(overTarget * 0.35)));
 
                 for (let step = 0; step < releaseSteps && pinnedCoreCount > allowedTrapped; step += 1) {
                     const condensingCandidate = getWorstPinnedCoreParticle(simState, true);
@@ -451,7 +454,7 @@ export const updateParticleSystem = ({
                 }
             } else if (pinnedCoreCount < allowedTrapped) {
                 const underTarget = allowedTrapped - pinnedCoreCount;
-                const condenseSteps = Math.max(1, Math.min(6, Math.ceil(underTarget * 0.5)));
+                const condenseSteps = Math.max(1, Math.min(4, Math.ceil(underTarget * 0.35)));
 
                 for (let step = 0; step < condenseSteps && pinnedCoreCount < allowedTrapped; step += 1) {
                     const gasCandidate = simState.particles.find((particle) =>

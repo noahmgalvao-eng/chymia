@@ -18,6 +18,7 @@ const __dirname = path.dirname(__filename);
 const mcpRoot = path.resolve(__dirname, "..");
 const webappRoot = path.resolve(__dirname, "../../Element-Viewer");
 const webappPackageJson = path.resolve(webappRoot, "package.json");
+const webappPackageLock = path.resolve(webappRoot, "package-lock.json");
 const webappNodeModules = path.resolve(webappRoot, "node_modules");
 const embedScript = path.resolve(mcpRoot, "scripts/embed-html.js");
 
@@ -59,16 +60,29 @@ if (!fs.existsSync(webappRoot)) {
 if (!fs.existsSync(webappPackageJson)) {
   fail(`package.json do webapp nao encontrado: ${webappPackageJson}`);
 }
+if (!fs.existsSync(webappPackageLock)) {
+  fail(`package-lock.json do webapp nao encontrado: ${webappPackageLock}`);
+}
 if (!fs.existsSync(embedScript)) {
   fail(`Script de embed nao encontrado: ${embedScript}`);
 }
 
-const isCI = process.env.CI === "true";
+const isCI = process.env.CI === "true" || process.env.VERCEL === "1";
 
 if (isCI) {
-  runStep("Instalando dependencias do Element-Viewer (CI)", npmCmd, ["ci"], webappRoot);
+  runStep(
+    "Instalando dependencias do Element-Viewer (CI/Vercel)",
+    npmCmd,
+    ["ci", "--include=dev"],
+    webappRoot
+  );
 } else if (!fs.existsSync(webappNodeModules)) {
-  runStep("Instalando dependencias do Element-Viewer (dev local)", npmCmd, ["install"], webappRoot);
+  runStep(
+    "Instalando dependencias do Element-Viewer (dev local)",
+    npmCmd,
+    ["install", "--include=dev"],
+    webappRoot
+  );
 } else {
   console.log("[sync-webapp] Dependencias ja presentes em Element-Viewer/node_modules. Pulando install.");
 }

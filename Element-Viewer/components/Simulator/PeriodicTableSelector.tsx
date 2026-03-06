@@ -169,6 +169,10 @@ type PreviewAvatarStyle = React.CSSProperties & {
   '--preview-avatar-color'?: string;
 };
 
+type ReactionPillStyle = React.CSSProperties & {
+  '--button-ring-color'?: string;
+};
+
 const DEFAULT_TEMPERATURE_K = 298.15;
 const DEFAULT_PRESSURE_PA = 101325;
 const TEMP_UNIT_SYMBOLS: Record<TempUnit, string> = {
@@ -216,6 +220,10 @@ const getReadableTextColor = (hexColor: string): string => {
   const b = Number.parseInt(fullHex.slice(4, 6), 16);
   const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
   return luminance > 0.63 ? '#111111' : '#ffffff';
+};
+
+const getReactionRingColor = (hexColor: string): string => {
+  return `color-mix(in oklab, ${hexColor} 54%, #111111)`;
 };
 
 const PeriodicTableSelector: React.FC<Props> = ({
@@ -655,23 +663,25 @@ const PeriodicTableSelector: React.FC<Props> = ({
                       const isSelected = selectedElements.some((selected) => selected.atomicNumber === reaction.atomicNumber);
                       const reactionColor = reaction.visualDNA?.solid?.color || '#d9d9d9';
                       const textColor = getReadableTextColor(reactionColor);
+                      const reactionStyle: ReactionPillStyle = {
+                        backgroundColor: reactionColor,
+                        color: textColor,
+                        borderColor: 'color-mix(in oklab, #111111 24%, transparent)',
+                        '--button-ring-color': getReactionRingColor(reactionColor),
+                      };
 
                       return (
                         <Button
                           key={reaction.atomicNumber}
                           color="secondary"
-                          variant={isSelected ? 'solid' : 'outline'}
+                          variant="solid"
                           size="sm"
                           onClick={() => onSelectReactionProduct(reaction)}
-                          className="periodic-reaction-pill z-[5] text-xs font-semibold"
-                          style={{
-                            backgroundColor: reactionColor,
-                            color: textColor,
-                            borderColor: 'color-mix(in oklab, #111111 24%, transparent)',
-                            boxShadow: isSelected ? '0 0 0 2px color-mix(in oklab, #ffffff 70%, transparent)' : undefined,
-                          }}
+                          className="periodic-reaction-pill relative z-[5] text-xs font-semibold"
+                          style={reactionStyle}
                           title={reaction.name}
                         >
+                          {isSelected && <span className="periodic-cell-selection-ring" aria-hidden />}
                           {reaction.symbol}
                         </Button>
                       );

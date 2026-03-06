@@ -25,6 +25,7 @@ import { ChemicalElement, MatterState, PhysicsState } from './types';
 import { predictMatterState } from './hooks/physics/phaseCalculations';
 import { useElementViewerChat } from './hooks/useElementViewerChat';
 import { useAppChatControls } from './hooks/useAppChatControls';
+import { useTelemetry } from './hooks/useTelemetry';
 import {
     ContextMenuData,
     IAReactionSubstance,
@@ -41,6 +42,19 @@ import {
 } from './app/appDefinitions';
 
 const TOOLTIP_CLASS = 'tooltip-solid';
+const PERIODIC_TABLE_CONTROL_SESSION_KEY = 'element-viewer-periodic-table-control-used';
+
+const readPeriodicTableControlSessionState = (): boolean => {
+    if (typeof window === 'undefined') {
+        return false;
+    }
+
+    try {
+        return window.sessionStorage.getItem(PERIODIC_TABLE_CONTROL_SESSION_KEY) === '1';
+    } catch {
+        return false;
+    }
+};
 
 function App() {
     // State for Selection (Array for Multi-Element)
@@ -58,6 +72,7 @@ function App() {
     const [timeScale, setTimeScale] = useState<number>(1);
     const [isPaused, setIsPaused] = useState(false);
     const [contextMenu, setContextMenu] = useState<ContextMenuData | null>(null);
+    const [hasUsedPeriodicTableControl, setHasUsedPeriodicTableControl] = useState<boolean>(() => readPeriodicTableControlSessionState());
 
     // Refs
     const simulationRegistry = useRef<Map<number, () => PhysicsState>>(new Map());
@@ -65,6 +80,7 @@ function App() {
     const reactionAtomicNumberRef = useRef(900000);
     const reactionProductsCacheRef = useRef<ChemicalElement[]>([]);
     const syncStateToChatGPTRef = useRef<() => Promise<void>>(async () => { });
+    const { logEvent } = useTelemetry();
 
     // ChatGPT Integration Hook
     const {
@@ -218,6 +234,63 @@ function App() {
         syncStateToChatGPT,
         handleInfoClick,
     });
+
+    const getSelectedAtomicNumbers = (elements: ChemicalElement[] = selectedElements) => {
+        return elements.map((element) => element.atomicNumber);
+    };
+
+    const getSimulationContext = () => ({
+        selectedAtomicNumbers: getSelectedAtomicNumbers(),
+        selectedSymbols: selectedElements.map((element) => element.symbol),
+        temperatureK: roundTo(temperature, 2),
+        pressurePa: roundTo(pressure, 6),
+    });
+
+    const markPeriodicTableControlUsed = () => {
+        if (hasUsedPeriodicTableControl) {
+            return;
+        }
+
+        setHasUsedPeriodicTableControl(true);
+        if (typeof window === 'undefined') {
+            return;
+        }
+
+        try {
+            window.sessionStorage.setItem(PERIODIC_TABLE_CONTROL_SESSION_KEY, '1');
+        } catch {
+            // Ignore storage failures inside sandboxed environments.
+        }
+    };
+
+    const handlePeriodicTableButtonClick = () => {
+        markPeriodicTableControlUsed();
+        setSidebarOpen((open) => !open);
+    };
+
+    const handleSetShowParticles = (nextValue: boolean) => {
+        setShowParticles(nextValue);
+        logEvent('XRAY_TOGGLE', {
+            enabled: nextValue,
+        });
+    };
+
+    const handleToggleFullscreenWithTelemetry = async (e: React.MouseEvent) => {
+        logEvent('FULLSCREEN_TOGGLE', {
+            targetMode: isFullscreen ? 'inline' : 'fullscreen',
+            ...getSimulationContext(),
+        });
+        await handleToggleFullscreen(e);
+    };
+
+    const handleInfoButtonClickWithTelemetry = async (e: React.MouseEvent) => {
+        logEvent('AI_INFO_CLICK', getSimulationContext());
+        await handleInfoButtonClick(e);
+    };
+
+    const handlePromptHelpClick = () => {
+        logEvent('AI_PROMPT_HELP_CLICK', getSimulationContext());
+    };
 
     const buildReactionElement = (reaction: IAReactionSubstance): ChemicalElement => {
         const atomicNumber = reactionAtomicNumberRef.current++;
@@ -386,18 +459,23 @@ function App() {
     }, []);
 
     // --- SELECTION LOGIC ---
-    const handleElementSelectInternal = (el: ChemicalElement, allowSingleDeselect: boolean) => {
+    const handleElementSelectInternal = (
+        el: ChemicalElement,
+        allowSingleDeselect: boolean,
+        source: 'periodic_table' | 'reaction_product'
+    ) => {
         if (isRecording) return; // Prevent changing elements while recording
         let didChangeSelection = false;
+        let nextSelection = selectedElements;
         const exists = selectedElements.some((item) => item.atomicNumber === el.atomicNumber);
 
         if (!isMultiSelect) {
             if (allowSingleDeselect && exists && selectedElements.length === 1) {
-                setSelectedElements([ELEMENTS[0]]);
+                nextSelection = [ELEMENTS[0]];
                 didChangeSelection = true;
             } else if (!exists || selectedElements.length > 1) {
                 // Single Mode: Replace
-                setSelectedElements([el]);
+                nextSelection = [el];
                 didChangeSelection = true;
             }
         } else {
@@ -407,21 +485,28 @@ function App() {
                 const filtered = selectedElements.filter(e => e.atomicNumber !== el.atomicNumber);
                 // If removing the last one, don't allow empty array (fallback to default or keep one)
                 if (filtered.length === 0) return;
-                setSelectedElements(filtered);
+                nextSelection = filtered;
                 didChangeSelection = true;
             } else {
                 // Add new
-                let newSelection = [...selectedElements, el];
-                if (newSelection.length > 6) {
+                nextSelection = [...selectedElements, el];
+                if (nextSelection.length > 6) {
                     // FIFO: Remove first, add new to end
-                    newSelection = newSelection.slice(1);
+                    nextSelection = nextSelection.slice(1);
                 }
-                setSelectedElements(newSelection);
                 didChangeSelection = true;
             }
         }
 
         if (didChangeSelection) {
+            setSelectedElements(nextSelection);
+            logEvent('ELEMENT_SELECT', {
+                atomicNumber: el.atomicNumber,
+                symbol: el.symbol,
+                source,
+                selectionMode: isMultiSelect ? 'compare' : 'single',
+                selectedAtomicNumbers: getSelectedAtomicNumbers(nextSelection),
+            });
             scheduleSyncStateToChatGPT();
         }
 
@@ -430,11 +515,11 @@ function App() {
     };
 
     const handleElementSelect = (el: ChemicalElement) => {
-        handleElementSelectInternal(el, false);
+        handleElementSelectInternal(el, false, 'periodic_table');
     };
 
     const handleReactionProductSelect = (el: ChemicalElement) => {
-        handleElementSelectInternal(el, true);
+        handleElementSelectInternal(el, true, 'reaction_product');
     };
 
     const handleToggleMultiSelect = () => {
@@ -450,18 +535,31 @@ function App() {
     // 2. FUNÃƒâ€¡ÃƒÆ’O DE TOGGLE
     const handleToggleSpeed = (e: React.MouseEvent) => {
         e.stopPropagation();
-        setTimeScale(prev => {
-            if (prev === 1) return 2;
-            if (prev === 2) return 4;
-            if (prev === 4) return 0.25;
-            if (prev === 0.25) return 0.5;
-            return 1;
+        const previousTimeScale = timeScale;
+        const nextTimeScale = timeScale === 1
+            ? 2
+            : timeScale === 2
+                ? 4
+                : timeScale === 4
+                    ? 0.25
+                    : timeScale === 0.25
+                        ? 0.5
+                        : 1;
+
+        setTimeScale(nextTimeScale);
+        logEvent('SIMULATION_SPEED_CHANGE', {
+            previousTimeScale,
+            nextTimeScale,
         });
     };
 
     const handleTogglePause = (e: React.MouseEvent) => {
         e.stopPropagation();
-        setIsPaused(!isPaused);
+        const nextPaused = !isPaused;
+        setIsPaused(nextPaused);
+        logEvent('SIMULATION_PAUSE_TOGGLE', {
+            paused: nextPaused,
+        });
     };
 
     // --- RECORDING LOGIC ---
@@ -484,6 +582,9 @@ function App() {
             });
             setRecordingStartData(startMap);
             setIsRecording(true);
+            logEvent('RECORD_START', {
+                selectedAtomicNumbers: getSelectedAtomicNumbers(),
+            });
         } else {
             // STOP RECORDING
             const results: { element: ChemicalElement, start: PhysicsState, end: PhysicsState }[] = [];
@@ -504,6 +605,10 @@ function App() {
 
             setRecordingResults(results);
             setIsRecording(false);
+            logEvent('RECORD_STOP', {
+                selectedAtomicNumbers: getSelectedAtomicNumbers(),
+                recordedCount: results.length,
+            });
         }
     };
 
@@ -557,6 +662,7 @@ function App() {
     const desktopUniformButtonClass = isDesktopApp ? 'h-6 w-6 min-h-6 min-w-6' : undefined;
     const desktopLabelButtonClass = isDesktopApp ? 'h-6 min-h-6 px-2 text-[10px]' : undefined;
     const leftControlTop = Math.max(0, (16 + insets.top) - (!isDesktopApp && isFullscreen ? 56 : 0));
+    const shouldCompactPeriodicTableButton = count >= 5 || hasUsedPeriodicTableControl;
 
     return (
         <div
@@ -583,29 +689,13 @@ function App() {
                 pressure={pressure}
                 setPressure={setPressure}
                 showParticles={showParticles}
-                setShowParticles={setShowParticles}
+                setShowParticles={handleSetShowParticles}
             />
 
             <div
                 className="fixed z-40 flex flex-col gap-3"
                 style={{ top: `${leftControlTop}px`, left: `${16 + insets.left}px` }}
             >
-                <Tooltip content={isSidebarOpen ? 'Hide periodic table' : 'Open periodic table'} contentClassName={TOOLTIP_CLASS}>
-                    <span>
-                        <Button
-                            color="secondary"
-                            variant="soft"
-                            pill
-                            uniform={count >= 5}
-                            className={count >= 5 ? desktopUniformButtonClass : desktopLabelButtonClass}
-                            onClick={() => setSidebarOpen((open) => !open)}
-                        >
-                            <SettingsSlider style={controlIconStyle} />
-                            {count < 5 && <span className="text-xs font-semibold">Open Periodic Table</span>}
-                        </Button>
-                    </span>
-                </Tooltip>
-
                 <Tooltip content="Toggle simulation speed" contentClassName={TOOLTIP_CLASS}>
                     <span>
                         <Button color="secondary" variant="soft" pill size="lg" className={desktopLabelButtonClass} onClick={handleToggleSpeed}>
@@ -654,6 +744,22 @@ function App() {
                         </Button>
                     </span>
                 </Tooltip>
+
+                <Tooltip content={isSidebarOpen ? 'Hide periodic table' : 'Open periodic table'} contentClassName={TOOLTIP_CLASS}>
+                    <span>
+                        <Button
+                            color="secondary"
+                            variant="soft"
+                            pill
+                            uniform={shouldCompactPeriodicTableButton}
+                            className={shouldCompactPeriodicTableButton ? desktopUniformButtonClass : desktopLabelButtonClass}
+                            onClick={handlePeriodicTableButtonClick}
+                        >
+                            <SettingsSlider style={controlIconStyle} />
+                            {!shouldCompactPeriodicTableButton && <span className="text-xs font-semibold">Open Periodic Table</span>}
+                        </Button>
+                    </span>
+                </Tooltip>
             </div>
 
             <div
@@ -662,7 +768,7 @@ function App() {
             >
                 <Tooltip content={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'} contentClassName={TOOLTIP_CLASS}>
                     <span>
-                        <Button color="secondary" variant="soft" pill uniform className={desktopUniformButtonClass} onClick={handleToggleFullscreen}>
+                        <Button color="secondary" variant="soft" pill uniform className={desktopUniformButtonClass} onClick={handleToggleFullscreenWithTelemetry}>
                             {isFullscreen ? <Collapse style={controlIconStyle} /> : <Expand style={controlIconStyle} />}
                         </Button>
                     </span>
@@ -670,7 +776,7 @@ function App() {
 
                 <Tooltip content="Ask ChatGPT about the current simulation" contentClassName={TOOLTIP_CLASS}>
                     <span>
-                        <Button color="info" variant="soft" pill uniform className={desktopUniformButtonClass} onClick={handleInfoButtonClick}>
+                        <Button color="info" variant="soft" pill uniform className={desktopUniformButtonClass} onClick={handleInfoButtonClickWithTelemetry}>
                             <ChatTripleDots
                                 style={{
                                     ...controlIconStyle,
@@ -684,7 +790,15 @@ function App() {
 
                 <Popover>
                     <Popover.Trigger>
-                        <Button color="secondary" variant="soft" pill uniform className={desktopUniformButtonClass} aria-label="O que posso pedir ao ChatGPT?">
+                        <Button
+                            color="secondary"
+                            variant="soft"
+                            pill
+                            uniform
+                            className={desktopUniformButtonClass}
+                            aria-label="O que posso pedir ao ChatGPT?"
+                            onClick={handlePromptHelpClick}
+                        >
                             <LightbulbGlow
                                 style={{
                                     ...controlIconStyle,

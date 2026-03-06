@@ -7,7 +7,48 @@ import { htmlContent } from "./html-content.js";
 // --- Helpers ---
 console.log(`[INIT] HTML content carregado: ${htmlContent.length} caracteres`);
 
-function createElementViewerServer() {
+function getFirstHeaderValue(value) {
+  if (Array.isArray(value)) {
+    return value[0] ?? null;
+  }
+  return typeof value === "string" ? value : null;
+}
+
+function getRequestOrigin(req) {
+  const forwardedProto = getFirstHeaderValue(req.headers["x-forwarded-proto"]);
+  const forwardedHost = getFirstHeaderValue(req.headers["x-forwarded-host"]);
+  const host = forwardedHost ?? getFirstHeaderValue(req.headers.host);
+
+  if (!host) {
+    return null;
+  }
+
+  const protocol = (forwardedProto ?? "https").split(",")[0].trim() || "https";
+  const normalizedHost = host.split(",")[0].trim();
+  return normalizedHost ? `${protocol}://${normalizedHost}` : null;
+}
+
+function getProductionOrigin() {
+  const productionHost = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  if (!productionHost) {
+    return null;
+  }
+
+  const normalizedHost = productionHost.replace(/^https?:\/\//u, "");
+  return normalizedHost ? `https://${normalizedHost}` : null;
+}
+
+function buildConnectDomains(req) {
+  const domains = [
+    "https://chatgpt.com",
+    getRequestOrigin(req),
+    getProductionOrigin(),
+  ].filter((value) => typeof value === "string" && value.length > 0);
+
+  return [...new Set(domains)];
+}
+
+function createElementViewerServer(connectDomains) {
   const server = new McpServer({
     name: "element-viewer",
     version: "1.0.0",
@@ -29,7 +70,7 @@ function createElementViewerServer() {
             "openai/widgetDomain": "https://chatgpt.com",
             "openai/widgetDescription": "Element Viewer interativo para explorar estados da materia e transicoes de fase.",
             "openai/widgetCSP": {
-              connect_domains: ["https://chatgpt.com"],
+              connect_domains: connectDomains,
               resource_domains: [
                 "https://*.oaistatic.com",
               ],
@@ -183,6 +224,15 @@ function createElementViewerServer() {
 // --- EXPRESS APP (for Vercel serverless) ---
 const app = express();
 
+app.options("/logs", (req, res) => {
+  res.writeHead(204, {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "content-type",
+  });
+  res.end();
+});
+
 app.options("/mcp", (req, res) => {
   res.writeHead(204, {
     "Access-Control-Allow-Origin": "*",
@@ -197,12 +247,55 @@ app.get("/", (req, res) => {
   res.status(200).send("Element Viewer MCP Server Running");
 });
 
+app.post("/logs", express.json({ limit: "32kb" }), (req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+
+  const payload = req.body;
+  const isObjectPayload =
+    payload && typeof payload === "object" && !Array.isArray(payload);
+
+  const event = isObjectPayload && typeof payload.event === "string"
+    ? payload.event
+    : "UNKNOWN_EVENT";
+  const sessionId = isObjectPayload && typeof payload.sessionId === "string"
+    ? payload.sessionId
+    : "unknown-session";
+  const timestamp = isObjectPayload && typeof payload.timestamp === "string"
+    ? payload.timestamp
+    : new Date().toISOString();
+  const userAgent = isObjectPayload && typeof payload.userAgent === "string"
+    ? payload.userAgent
+    : null;
+  const data =
+    isObjectPayload &&
+    payload.data &&
+    typeof payload.data === "object" &&
+    !Array.isArray(payload.data)
+      ? payload.data
+      : null;
+
+  console.log(
+    JSON.stringify({
+      type: "widget_telemetry",
+      receivedAt: new Date().toISOString(),
+      sessionId,
+      event,
+      timestamp,
+      data,
+      userAgent,
+    })
+  );
+
+  res.status(204).end();
+});
+
 app.all("/mcp", async (req, res) => {
   console.log(`[MCP] ${req.method} /mcp`);
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Expose-Headers", "Mcp-Session-Id");
 
-  const server = createElementViewerServer();
+  const connectDomains = buildConnectDomains(req);
+  const server = createElementViewerServer(connectDomains);
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,

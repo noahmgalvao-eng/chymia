@@ -44,6 +44,9 @@ export const usePhysics = ({ element, temperature: targetEnvTemp, pressure, qual
     lastFrameTime: performance.now(),
     particles: initParticles(effectiveParticleCount),
     simTime: 0,
+    previousBoilLikeProgress: 0,
+    slotByParticleId: new Map(),
+    previousRetainedSlotIds: [],
     lastStableState: MatterState.SOLID,
     transitionStartTime: 0,
     transitionDuration: 1,
@@ -55,6 +58,9 @@ export const usePhysics = ({ element, temperature: targetEnvTemp, pressure, qual
   useEffect(() => {
     if (simState.current.particles.length !== effectiveParticleCount) {
         simState.current.particles = initParticles(effectiveParticleCount);
+        simState.current.previousBoilLikeProgress = 0;
+        simState.current.slotByParticleId = new Map();
+        simState.current.previousRetainedSlotIds = [];
     }
   }, [effectiveParticleCount]);
 
@@ -62,6 +68,10 @@ export const usePhysics = ({ element, temperature: targetEnvTemp, pressure, qual
   useEffect(() => {
     const { element, targetEnvTemp } = propsRef.current;
     const { meltingPointK, specificHeatSolid, specificHeatLiquid, latentHeatFusion } = element.properties;
+
+    simState.current.previousBoilLikeProgress = 0;
+    simState.current.slotByParticleId = new Map();
+    simState.current.previousRetainedSlotIds = [];
 
     if (targetEnvTemp < meltingPointK) {
         simState.current.enthalpy = SAMPLE_MASS * specificHeatSolid * targetEnvTemp;

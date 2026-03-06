@@ -5,6 +5,9 @@ export interface SimulationMutableState {
     lastFrameTime: number;
     particles: Particle[];
     simTime: number;
+    previousBoilLikeProgress: number;
+    slotByParticleId: Map<number, number>;
+    previousRetainedSlotIds: number[];
 
     // SCF Logic Tracks
     lastStableState: MatterState;

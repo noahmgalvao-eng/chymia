@@ -1,5 +1,5 @@
 
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useMemo } from 'react';
 import { PhysicsState, ChemicalElement, MatterState, ParticleState, ViewBoxDimensions } from '../../types';
 import { MATTER_PATH_FRAMES } from '../../data/elements';
 import { interpolatePath, interpolateColor, interpolateValue } from '../../utils/interpolator';
@@ -77,8 +77,6 @@ const tuneColorForTheme = (hexColor: string, isDarkTheme: boolean) => {
 };
 
 const APPS_UI_FONT_STACK = 'ui-sans-serif, -apple-system, system-ui, "Segoe UI", "Noto Sans", "Helvetica", "Arial", sans-serif';
-
-const PATH_NUMBER_REGEX = /[-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?/g;
 
 const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, viewBounds, totalElements, onInspect }) => {
     const { messages } = useI18n();
@@ -172,22 +170,19 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
         };
     }, [state, meltProgress, matterRect]);
 
-    const shouldUseEvaporationShapeSync = false;
-
     const shouldResolveTrappedOverlaps =
         showParticles &&
-        (
-            shouldUseEvaporationShapeSync ||
-            [
-                MatterState.SOLID,
-                MatterState.MELTING,
-                MatterState.EQUILIBRIUM_MELT,
-                MatterState.LIQUID,
-                MatterState.EQUILIBRIUM_TRIPLE,
-            ].includes(state)
-        );
-
-    const previousEvaporationTargetsRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+        [
+            MatterState.SOLID,
+            MatterState.MELTING,
+            MatterState.EQUILIBRIUM_MELT,
+            MatterState.LIQUID,
+            MatterState.BOILING,
+            MatterState.EQUILIBRIUM_BOIL,
+            MatterState.EQUILIBRIUM_TRIPLE,
+            MatterState.TRANSITION_SCF,
+            MatterState.GAS,
+        ].includes(state);
 
     const trappedParticleRenderMap = useMemo(() => {
         const resolved = new Map<number, { x: number; y: number }>();
@@ -196,6 +191,8 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
         const trappedParticles = particles.filter((particle) => particle.state === ParticleState.TRAPPED);
         if (trappedParticles.length === 0) return resolved;
 
+        const vibrationAmp = Math.sqrt(Math.max(0, physics.temperature)) * 0.15;
+        const time = physics.simTime * 25;
         const nodes: Array<{
             id: number;
             r: number;
@@ -203,145 +200,24 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
             y: number;
             targetX: number;
             targetY: number;
-        }> = [];
+        }> = trappedParticles.map((particle) => {
+            const jitterX = Math.sin(time + particle.id * 123) * vibrationAmp;
+            const jitterY = Math.cos(time + particle.id * 321) * vibrationAmp;
+            const targetX = particle.homeX + jitterX;
+            const targetY = particle.homeY + jitterY;
 
-        if (shouldUseEvaporationShapeSync && typeof document !== 'undefined' && typeof Path2D !== 'undefined') {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
+            return {
+                id: particle.id,
+                r: particle.r,
+                x: targetX,
+                y: targetY,
+                targetX,
+                targetY,
+            };
+        });
 
-            if (ctx) {
-                try {
-                    const puddlePath = new Path2D(currentPath);
-                    const numericTokens = currentPath.match(PATH_NUMBER_REGEX);
-                    const numericCoordinates = numericTokens ? numericTokens.map((value) => Number(value)) : [];
-
-                    let minLocalX = Number.POSITIVE_INFINITY;
-                    let maxLocalX = Number.NEGATIVE_INFINITY;
-                    let minLocalY = Number.POSITIVE_INFINITY;
-                    let maxLocalY = Number.NEGATIVE_INFINITY;
-
-                    for (let index = 0; index < numericCoordinates.length - 1; index += 2) {
-                        const localX = numericCoordinates[index];
-                        const localY = numericCoordinates[index + 1];
-
-                        if (!Number.isFinite(localX) || !Number.isFinite(localY)) continue;
-                        minLocalX = Math.min(minLocalX, localX);
-                        maxLocalX = Math.max(maxLocalX, localX);
-                        minLocalY = Math.min(minLocalY, localY);
-                        maxLocalY = Math.max(maxLocalY, localY);
-                    }
-
-                    if (
-                        Number.isFinite(minLocalX) &&
-                        Number.isFinite(maxLocalX) &&
-                        Number.isFinite(minLocalY) &&
-                        Number.isFinite(maxLocalY)
-                    ) {
-                        const localWidth = Math.max(1, maxLocalX - minLocalX);
-                        const localHeight = Math.max(1, maxLocalY - minLocalY);
-                        const localCenterX = (minLocalX + maxLocalX) / 2;
-                        const localCenterY = (minLocalY + maxLocalY) / 2;
-                        const halfWidth = Math.max(1, localWidth * 0.5);
-                        const halfHeight = Math.max(1, localHeight * 0.5);
-                        const minAxisScale = Math.max(0.2, Math.min(Math.abs(scaleX), Math.abs(scaleY)));
-                        const meanParticleRadius = trappedParticles.reduce((sum, particle) => sum + particle.r, 0) / trappedParticles.length;
-                        const samplingStep = Math.max(1.5, (meanParticleRadius * 0.7) / minAxisScale);
-
-                        const candidates: Array<{ x: number; y: number; score: number }> = [];
-                        for (let localY = minLocalY; localY <= maxLocalY; localY += samplingStep) {
-                            for (let localX = minLocalX; localX <= maxLocalX; localX += samplingStep) {
-                                if (!ctx.isPointInPath(puddlePath, localX, localY)) continue;
-
-                                const worldX = centerX + (localX * scaleX);
-                                const worldY = centerY + (localY * scaleY);
-                                const centerPenalty = Math.hypot(
-                                    (localX - localCenterX) / halfWidth,
-                                    (localY - localCenterY) / halfHeight,
-                                );
-                                const sidePenalty = Math.abs(localX - localCenterX) / halfWidth;
-                                const topPenalty = (maxLocalY - localY) / localHeight;
-                                const score = (centerPenalty * 0.2) + (sidePenalty * 0.65) + (topPenalty * 0.95);
-
-                                candidates.push({ x: worldX, y: worldY, score });
-                            }
-                        }
-
-                        if (candidates.length >= trappedParticles.length) {
-                            candidates.sort((a, b) => a.score - b.score);
-                            const preferredPool = candidates
-                                .slice(0, Math.max(trappedParticles.length * 10, trappedParticles.length))
-                                .map((candidate) => ({ x: candidate.x, y: candidate.y }));
-
-                            const previousTargets = previousEvaporationTargetsRef.current;
-                            const trappedById = [...trappedParticles].sort((a, b) => a.id - b.id);
-
-                            for (const particle of trappedById) {
-                                if (preferredPool.length === 0) break;
-
-                                const previousTarget = previousTargets.get(particle.id);
-                                const anchorX = previousTarget ? previousTarget.x : particle.x;
-                                const anchorY = previousTarget ? previousTarget.y : particle.y;
-
-                                let nearestIndex = 0;
-                                let nearestDistanceSq = Number.POSITIVE_INFINITY;
-
-                                for (let index = 0; index < preferredPool.length; index += 1) {
-                                    const candidate = preferredPool[index];
-                                    const dx = candidate.x - anchorX;
-                                    const dy = candidate.y - anchorY;
-                                    const distanceSq = (dx * dx) + (dy * dy);
-                                    if (distanceSq < nearestDistanceSq) {
-                                        nearestDistanceSq = distanceSq;
-                                        nearestIndex = index;
-                                    }
-                                }
-
-                                const [target] = preferredPool.splice(nearestIndex, 1);
-                                nodes.push({
-                                    id: particle.id,
-                                    r: particle.r,
-                                    x: target.x,
-                                    y: target.y,
-                                    targetX: target.x,
-                                    targetY: target.y,
-                                });
-                            }
-                        }
-                    }
-                } catch {
-                    // Fall back to default jitter mode if path sampling cannot be executed.
-                }
-            }
-        }
-
-        if (nodes.length !== trappedParticles.length) {
-            nodes.length = 0;
-
-            const vibrationAmp = Math.sqrt(Math.max(0, physics.temperature)) * 0.15;
-            const time = physics.simTime * 25;
-            for (const particle of trappedParticles) {
-                const jitterX = Math.sin(time + particle.id * 123) * vibrationAmp;
-                const jitterY = Math.cos(time + particle.id * 321) * vibrationAmp;
-                const targetX = particle.x + jitterX;
-                const targetY = particle.y + jitterY;
-
-                nodes.push({
-                    id: particle.id,
-                    r: particle.r,
-                    x: targetX,
-                    y: targetY,
-                    targetX,
-                    targetY,
-                });
-            }
-        }
-
-        const iterations = shouldUseEvaporationShapeSync ? 10 : 8;
-        const anchorBlend = shouldUseEvaporationShapeSync ? 0.4 : 0.15;
-        const finalSeparationPasses = shouldUseEvaporationShapeSync ? 4 : 8;
         const overlapTolerance = 1e-3;
         const distanceEpsilon = 1e-6;
-        const evaporationDriftFactor = 0.55;
 
         const applySeparationPass = (): number => {
             let maxOverlap = 0;
@@ -390,39 +266,17 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
             return maxOverlap;
         };
 
-        for (let iter = 0; iter < iterations; iter += 1) {
+        for (let iter = 0; iter < 8; iter += 1) {
             applySeparationPass();
 
             for (const node of nodes) {
-                node.x = interpolateValue(node.x, node.targetX, anchorBlend);
-                node.y = interpolateValue(node.y, node.targetY, anchorBlend);
-
-                if (shouldUseEvaporationShapeSync) {
-                    const maxDrift = Math.max(1.5, node.r * evaporationDriftFactor);
-                    const dx = node.x - node.targetX;
-                    const dy = node.y - node.targetY;
-                    const distSq = (dx * dx) + (dy * dy);
-                    const maxDriftSq = maxDrift * maxDrift;
-
-                    if (distSq > maxDriftSq) {
-                        const dist = Math.sqrt(distSq) || 1;
-                        node.x = node.targetX + ((dx / dist) * maxDrift);
-                        node.y = node.targetY + ((dy / dist) * maxDrift);
-                    }
-                }
+                node.x = interpolateValue(node.x, node.targetX, 0.15);
+                node.y = interpolateValue(node.y, node.targetY, 0.15);
             }
         }
 
-        for (let pass = 0; pass < finalSeparationPasses; pass += 1) {
+        for (let pass = 0; pass < 8; pass += 1) {
             const maxOverlap = applySeparationPass();
-
-            if (shouldUseEvaporationShapeSync) {
-                for (const node of nodes) {
-                    node.x = interpolateValue(node.x, node.targetX, 0.45);
-                    node.y = interpolateValue(node.y, node.targetY, 0.45);
-                }
-            }
-
             if (maxOverlap < overlapTolerance) {
                 break;
             }
@@ -438,22 +292,7 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
         physics.simTime,
         physics.temperature,
         shouldResolveTrappedOverlaps,
-        shouldUseEvaporationShapeSync,
-        currentPath,
-        scaleX,
-        scaleY,
-        centerX,
-        centerY,
     ]);
-
-    useEffect(() => {
-        if (!shouldUseEvaporationShapeSync) {
-            previousEvaporationTargetsRef.current.clear();
-            return;
-        }
-
-        previousEvaporationTargetsRef.current = new Map(trappedParticleRenderMap);
-    }, [shouldUseEvaporationShapeSync, trappedParticleRenderMap]);
 
     // --- VISIBILITY LOGIC ---
     const hasTrappedParticles = useMemo(() => {
@@ -820,8 +659,8 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
                                 const time = physics.simTime * 25;
                                 const jitterX = Math.sin(time + p.id * 123) * vibrationAmp;
                                 const jitterY = Math.cos(time + p.id * 321) * vibrationAmp;
-                                renderX += jitterX;
-                                renderY += jitterY;
+                                renderX = p.homeX + jitterX;
+                                renderY = p.homeY + jitterY;
                             }
                         }
 

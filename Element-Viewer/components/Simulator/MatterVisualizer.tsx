@@ -1,8 +1,12 @@
 
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useMemo } from 'react';
 import { PhysicsState, ChemicalElement, MatterState, ParticleState, ViewBoxDimensions } from '../../types';
-import { MATTER_PATH_FRAMES } from '../../data/elements';
-import { interpolatePath, interpolateColor, interpolateValue } from '../../utils/interpolator';
+import { interpolateColor, interpolateValue } from '../../utils/interpolator';
+import {
+    getMatterPathFromProgress,
+    getMatterRenderTransform,
+    getParticleVibration,
+} from '../../utils/evaporationLayout';
 
 interface Props {
     physics: PhysicsState;
@@ -74,23 +78,12 @@ const tuneColorForTheme = (hexColor: string, isDarkTheme: boolean) => {
     return hexColor;
 };
 
-const PATH_NUMBER_REGEX = /[-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?/g;
-
 const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, viewBounds, totalElements, onInspect }) => {
     const { pathProgress, state, particles, boilProgress, meltProgress, matterRect, gasBounds, scfOpacity, simTime, sublimationProgress, powerInput } = physics;
 
     // --- 1. SVG Path Interpolator (Puddle / Solid) ---
     const currentPath = useMemo(() => {
-        // pathProgress goes 0 -> 10
-        const frameIndex = Math.min(Math.floor(pathProgress), MATTER_PATH_FRAMES.length - 2);
-        const nextFrameIndex = frameIndex + 1;
-        const progressInFrame = pathProgress - frameIndex;
-
-        const d1 = MATTER_PATH_FRAMES[frameIndex];
-        const d2 = MATTER_PATH_FRAMES[nextFrameIndex];
-
-        if (!d1 || !d2) return MATTER_PATH_FRAMES[0];
-        return interpolatePath(d1, d2, progressInFrame);
+        return getMatterPathFromProgress(pathProgress);
     }, [pathProgress]);
 
     // --- DNA Visual Properties (Dynamic from JSON) ---
@@ -150,22 +143,10 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
         };
     }, [state, meltProgress, solid, liquid, gas, adjustedSolidColor, adjustedLiquidColor, adjustedGasColor, showParticles]);
 
-    const { scaleX, scaleY, centerX, centerY } = useMemo(() => {
-        let refWidth = 120 + (180 * meltProgress);
-        let refHeight = 120 - (70 * meltProgress);
-
-        if (state === MatterState.SUBLIMATION || state === MatterState.EQUILIBRIUM_SUB) {
-            refWidth = 120;
-            refHeight = 120;
-        }
-
-        return {
-            scaleX: matterRect ? matterRect.w / refWidth : 1,
-            scaleY: matterRect ? matterRect.h / refHeight : 1,
-            centerX: 200,
-            centerY: 300,
-        };
-    }, [state, meltProgress, matterRect]);
+    const { scaleX, scaleY, centerX, centerY } = useMemo(
+        () => getMatterRenderTransform(matterRect, meltProgress, state),
+        [matterRect, meltProgress, state],
+    );
 
     const shouldUseEvaporationShapeSync =
         showParticles &&
@@ -184,8 +165,6 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
             ].includes(state)
         );
 
-    const previousEvaporationTargetsRef = useRef<Map<number, { x: number; y: number }>>(new Map());
-
     const trappedParticleRenderMap = useMemo(() => {
         const resolved = new Map<number, { x: number; y: number }>();
         if (!shouldResolveTrappedOverlaps) return resolved;
@@ -193,152 +172,29 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
         const trappedParticles = particles.filter((particle) => particle.state === ParticleState.TRAPPED);
         if (trappedParticles.length === 0) return resolved;
 
-        const nodes: Array<{
-            id: number;
-            r: number;
-            x: number;
-            y: number;
-            targetX: number;
-            targetY: number;
-        }> = [];
+        const nodes = trappedParticles.map((particle) => {
+            const vibration = getParticleVibration(particle.id, physics.simTime, physics.temperature);
+            const baseX = shouldUseEvaporationShapeSync ? particle.homeX : particle.x;
+            const baseY = shouldUseEvaporationShapeSync ? particle.homeY : particle.y;
+            const targetX = baseX + vibration.x;
+            const targetY = baseY + vibration.y;
 
-        if (shouldUseEvaporationShapeSync && typeof document !== 'undefined' && typeof Path2D !== 'undefined') {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
+            return {
+                id: particle.id,
+                r: particle.r,
+                x: targetX,
+                y: targetY,
+                targetX,
+                targetY,
+            };
+        });
 
-            if (ctx) {
-                try {
-                    const puddlePath = new Path2D(currentPath);
-                    const numericTokens = currentPath.match(PATH_NUMBER_REGEX);
-                    const numericCoordinates = numericTokens ? numericTokens.map((value) => Number(value)) : [];
-
-                    let minLocalX = Number.POSITIVE_INFINITY;
-                    let maxLocalX = Number.NEGATIVE_INFINITY;
-                    let minLocalY = Number.POSITIVE_INFINITY;
-                    let maxLocalY = Number.NEGATIVE_INFINITY;
-
-                    for (let index = 0; index < numericCoordinates.length - 1; index += 2) {
-                        const localX = numericCoordinates[index];
-                        const localY = numericCoordinates[index + 1];
-
-                        if (!Number.isFinite(localX) || !Number.isFinite(localY)) continue;
-                        minLocalX = Math.min(minLocalX, localX);
-                        maxLocalX = Math.max(maxLocalX, localX);
-                        minLocalY = Math.min(minLocalY, localY);
-                        maxLocalY = Math.max(maxLocalY, localY);
-                    }
-
-                    if (
-                        Number.isFinite(minLocalX) &&
-                        Number.isFinite(maxLocalX) &&
-                        Number.isFinite(minLocalY) &&
-                        Number.isFinite(maxLocalY)
-                    ) {
-                        const localWidth = Math.max(1, maxLocalX - minLocalX);
-                        const localHeight = Math.max(1, maxLocalY - minLocalY);
-                        const localCenterX = (minLocalX + maxLocalX) / 2;
-                        const localCenterY = (minLocalY + maxLocalY) / 2;
-                        const halfWidth = Math.max(1, localWidth * 0.5);
-                        const halfHeight = Math.max(1, localHeight * 0.5);
-                        const minAxisScale = Math.max(0.2, Math.min(Math.abs(scaleX), Math.abs(scaleY)));
-                        const meanParticleRadius = trappedParticles.reduce((sum, particle) => sum + particle.r, 0) / trappedParticles.length;
-                        const samplingStep = Math.max(1.5, (meanParticleRadius * 0.7) / minAxisScale);
-
-                        const candidates: Array<{ x: number; y: number; score: number }> = [];
-                        for (let localY = minLocalY; localY <= maxLocalY; localY += samplingStep) {
-                            for (let localX = minLocalX; localX <= maxLocalX; localX += samplingStep) {
-                                if (!ctx.isPointInPath(puddlePath, localX, localY)) continue;
-
-                                const worldX = centerX + (localX * scaleX);
-                                const worldY = centerY + (localY * scaleY);
-                                const centerPenalty = Math.hypot(
-                                    (localX - localCenterX) / halfWidth,
-                                    (localY - localCenterY) / halfHeight,
-                                );
-                                const sidePenalty = Math.abs(localX - localCenterX) / halfWidth;
-                                const topPenalty = (maxLocalY - localY) / localHeight;
-                                const score = (centerPenalty * 0.2) + (sidePenalty * 0.65) + (topPenalty * 0.95);
-
-                                candidates.push({ x: worldX, y: worldY, score });
-                            }
-                        }
-
-                        if (candidates.length >= trappedParticles.length) {
-                            candidates.sort((a, b) => a.score - b.score);
-                            const preferredPool = candidates
-                                .slice(0, Math.max(trappedParticles.length * 10, trappedParticles.length))
-                                .map((candidate) => ({ x: candidate.x, y: candidate.y }));
-
-                            const previousTargets = previousEvaporationTargetsRef.current;
-                            const trappedById = [...trappedParticles].sort((a, b) => a.id - b.id);
-
-                            for (const particle of trappedById) {
-                                if (preferredPool.length === 0) break;
-
-                                const previousTarget = previousTargets.get(particle.id);
-                                const anchorX = previousTarget ? previousTarget.x : particle.x;
-                                const anchorY = previousTarget ? previousTarget.y : particle.y;
-
-                                let nearestIndex = 0;
-                                let nearestDistanceSq = Number.POSITIVE_INFINITY;
-
-                                for (let index = 0; index < preferredPool.length; index += 1) {
-                                    const candidate = preferredPool[index];
-                                    const dx = candidate.x - anchorX;
-                                    const dy = candidate.y - anchorY;
-                                    const distanceSq = (dx * dx) + (dy * dy);
-                                    if (distanceSq < nearestDistanceSq) {
-                                        nearestDistanceSq = distanceSq;
-                                        nearestIndex = index;
-                                    }
-                                }
-
-                                const [target] = preferredPool.splice(nearestIndex, 1);
-                                nodes.push({
-                                    id: particle.id,
-                                    r: particle.r,
-                                    x: target.x,
-                                    y: target.y,
-                                    targetX: target.x,
-                                    targetY: target.y,
-                                });
-                            }
-                        }
-                    }
-                } catch {
-                    // Fall back to default jitter mode if path sampling cannot be executed.
-                }
-            }
-        }
-
-        if (nodes.length !== trappedParticles.length) {
-            nodes.length = 0;
-
-            const vibrationAmp = Math.sqrt(Math.max(0, physics.temperature)) * 0.15;
-            const time = physics.simTime * 25;
-            for (const particle of trappedParticles) {
-                const jitterX = Math.sin(time + particle.id * 123) * vibrationAmp;
-                const jitterY = Math.cos(time + particle.id * 321) * vibrationAmp;
-                const targetX = particle.x + jitterX;
-                const targetY = particle.y + jitterY;
-
-                nodes.push({
-                    id: particle.id,
-                    r: particle.r,
-                    x: targetX,
-                    y: targetY,
-                    targetX,
-                    targetY,
-                });
-            }
-        }
-
-        const iterations = shouldUseEvaporationShapeSync ? 10 : 8;
-        const anchorBlend = shouldUseEvaporationShapeSync ? 0.4 : 0.15;
-        const finalSeparationPasses = shouldUseEvaporationShapeSync ? 4 : 8;
+        const iterations = shouldUseEvaporationShapeSync ? 2 : 8;
+        const anchorBlend = shouldUseEvaporationShapeSync ? 0.65 : 0.15;
+        const finalSeparationPasses = shouldUseEvaporationShapeSync ? 1 : 8;
         const overlapTolerance = 1e-3;
         const distanceEpsilon = 1e-6;
-        const evaporationDriftFactor = 0.55;
+        const evaporationDriftLimit = 1.25;
 
         const applySeparationPass = (): number => {
             let maxOverlap = 0;
@@ -395,16 +251,15 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
                 node.y = interpolateValue(node.y, node.targetY, anchorBlend);
 
                 if (shouldUseEvaporationShapeSync) {
-                    const maxDrift = Math.max(1.5, node.r * evaporationDriftFactor);
                     const dx = node.x - node.targetX;
                     const dy = node.y - node.targetY;
                     const distSq = (dx * dx) + (dy * dy);
-                    const maxDriftSq = maxDrift * maxDrift;
+                    const maxDriftSq = evaporationDriftLimit * evaporationDriftLimit;
 
                     if (distSq > maxDriftSq) {
                         const dist = Math.sqrt(distSq) || 1;
-                        node.x = node.targetX + ((dx / dist) * maxDrift);
-                        node.y = node.targetY + ((dy / dist) * maxDrift);
+                        node.x = node.targetX + ((dx / dist) * evaporationDriftLimit);
+                        node.y = node.targetY + ((dy / dist) * evaporationDriftLimit);
                     }
                 }
             }
@@ -415,8 +270,8 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
 
             if (shouldUseEvaporationShapeSync) {
                 for (const node of nodes) {
-                    node.x = interpolateValue(node.x, node.targetX, 0.45);
-                    node.y = interpolateValue(node.y, node.targetY, 0.45);
+                    node.x = interpolateValue(node.x, node.targetX, 0.7);
+                    node.y = interpolateValue(node.y, node.targetY, 0.7);
                 }
             }
 
@@ -436,21 +291,7 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
         physics.temperature,
         shouldResolveTrappedOverlaps,
         shouldUseEvaporationShapeSync,
-        currentPath,
-        scaleX,
-        scaleY,
-        centerX,
-        centerY,
     ]);
-
-    useEffect(() => {
-        if (!shouldUseEvaporationShapeSync) {
-            previousEvaporationTargetsRef.current.clear();
-            return;
-        }
-
-        previousEvaporationTargetsRef.current = new Map(trappedParticleRenderMap);
-    }, [shouldUseEvaporationShapeSync, trappedParticleRenderMap]);
 
     // --- VISIBILITY LOGIC ---
     const hasTrappedParticles = useMemo(() => {
@@ -766,12 +607,11 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
                                 renderX = resolvedTrappedPosition.x;
                                 renderY = resolvedTrappedPosition.y;
                             } else {
-                                const vibrationAmp = Math.sqrt(physics.temperature) * 0.15;
-                                const time = physics.simTime * 25;
-                                const jitterX = Math.sin(time + p.id * 123) * vibrationAmp;
-                                const jitterY = Math.cos(time + p.id * 321) * vibrationAmp;
-                                renderX += jitterX;
-                                renderY += jitterY;
+                                const vibration = getParticleVibration(p.id, physics.simTime, physics.temperature);
+                                const baseX = shouldUseEvaporationShapeSync ? p.homeX : renderX;
+                                const baseY = shouldUseEvaporationShapeSync ? p.homeY : renderY;
+                                renderX = baseX + vibration.x;
+                                renderY = baseY + vibration.y;
                             }
                         }
 

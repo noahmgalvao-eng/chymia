@@ -49,12 +49,16 @@ export const usePhysics = ({ element, temperature: targetEnvTemp, pressure, qual
     transitionDuration: 1,
     isTransitioning: false,
     scfTargetOpacity: 0,
-    areAllParticlesSettled: true
+    areAllParticlesSettled: true,
+    evaporationSlotByParticleId: new Map(),
+    evaporationLayoutKey: ''
   });
 
   useEffect(() => {
     if (simState.current.particles.length !== effectiveParticleCount) {
         simState.current.particles = initParticles(effectiveParticleCount);
+        simState.current.evaporationSlotByParticleId.clear();
+        simState.current.evaporationLayoutKey = '';
     }
   }, [effectiveParticleCount]);
 
@@ -62,6 +66,9 @@ export const usePhysics = ({ element, temperature: targetEnvTemp, pressure, qual
   useEffect(() => {
     const { element, targetEnvTemp } = propsRef.current;
     const { meltingPointK, specificHeatSolid, specificHeatLiquid, latentHeatFusion } = element.properties;
+
+    simState.current.evaporationSlotByParticleId.clear();
+    simState.current.evaporationLayoutKey = '';
 
     if (targetEnvTemp < meltingPointK) {
         simState.current.enthalpy = SAMPLE_MASS * specificHeatSolid * targetEnvTemp;

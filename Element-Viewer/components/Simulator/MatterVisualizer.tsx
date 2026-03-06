@@ -155,7 +155,7 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
         showParticles &&
         (state === MatterState.BOILING || state === MatterState.EQUILIBRIUM_BOIL);
 
-    const shouldResolveTrappedOverlaps =
+    const shouldResolveConstrainedOverlaps =
         showParticles &&
         (
             shouldUseEvaporationShapeSync ||
@@ -168,19 +168,33 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
             ].includes(state)
         );
 
-    const trappedParticleRenderMap = useMemo(() => {
+    const constrainedParticleRenderMap = useMemo(() => {
         const resolved = new Map<number, { x: number; y: number }>();
-        if (!shouldResolveTrappedOverlaps) return resolved;
+        if (!shouldResolveConstrainedOverlaps) return resolved;
 
-        const trappedParticles = particles.filter((particle) => particle.state === ParticleState.TRAPPED);
-        if (trappedParticles.length === 0) return resolved;
+        const constrainedParticles = particles.filter((particle) => {
+            if (particle.state === ParticleState.TRAPPED) return true;
+            if (!shouldUseEvaporationShapeSync) return false;
+            if (particle.state === ParticleState.CONDENSING) return true;
+            if (particle.state !== ParticleState.RISING) return false;
 
-        const nodes = trappedParticles.map((particle) => {
-            const vibration = getParticleVibration(particle.id, physics.simTime, physics.temperature);
-            const baseX = shouldUseEvaporationShapeSync ? particle.homeX : particle.x;
-            const baseY = shouldUseEvaporationShapeSync ? particle.homeY : particle.y;
-            const targetX = baseX + vibration.x;
-            const targetY = baseY + vibration.y;
+            const maxYOffset = particle.r * 6;
+            const maxXOffset = particle.r * 4;
+            return particle.y >= (particle.homeY - maxYOffset) && Math.abs(particle.x - particle.homeX) <= maxXOffset;
+        });
+        if (constrainedParticles.length === 0) return resolved;
+
+        const nodes = constrainedParticles.map((particle) => {
+            let targetX = particle.x;
+            let targetY = particle.y;
+
+            if (particle.state === ParticleState.TRAPPED) {
+                const vibration = getParticleVibration(particle.id, physics.simTime, physics.temperature);
+                const baseX = shouldUseEvaporationShapeSync ? particle.homeX : particle.x;
+                const baseY = shouldUseEvaporationShapeSync ? particle.homeY : particle.y;
+                targetX = baseX + vibration.x;
+                targetY = baseY + vibration.y;
+            }
 
             return {
                 id: particle.id,
@@ -292,7 +306,7 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
         particles,
         physics.simTime,
         physics.temperature,
-        shouldResolveTrappedOverlaps,
+        shouldResolveConstrainedOverlaps,
         shouldUseEvaporationShapeSync,
     ]);
 
@@ -588,6 +602,7 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
                         let opacity = gas.opacidade;
                         let renderX = p.x;
                         let renderY = p.y;
+                        const resolvedConstrainedPosition = constrainedParticleRenderMap.get(p.id);
 
                         if (p.state === ParticleState.RISING || p.state === ParticleState.CONDENSING) {
                             fill = adjustedLiquidColor;
@@ -605,10 +620,9 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
                             fill = state === MatterState.SOLID || state === MatterState.SUBLIMATION || state === MatterState.EQUILIBRIUM_SUB ? adjustedSolidColor : adjustedLiquidColor;
                             opacity = 0.9;
 
-                            const resolvedTrappedPosition = trappedParticleRenderMap.get(p.id);
-                            if (resolvedTrappedPosition) {
-                                renderX = resolvedTrappedPosition.x;
-                                renderY = resolvedTrappedPosition.y;
+                            if (resolvedConstrainedPosition) {
+                                renderX = resolvedConstrainedPosition.x;
+                                renderY = resolvedConstrainedPosition.y;
                             } else {
                                 const vibration = getParticleVibration(p.id, physics.simTime, physics.temperature);
                                 const baseX = shouldUseEvaporationShapeSync ? p.homeX : renderX;
@@ -616,6 +630,9 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
                                 renderX = baseX + vibration.x;
                                 renderY = baseY + vibration.y;
                             }
+                        } else if (resolvedConstrainedPosition) {
+                            renderX = resolvedConstrainedPosition.x;
+                            renderY = resolvedConstrainedPosition.y;
                         }
 
                         return (

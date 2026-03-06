@@ -41,6 +41,7 @@ export interface EvaporationLayout {
     currentPath: string;
     slots: EvaporationLayoutSlot[];
     capacity: number;
+    topExitY: number;
 }
 
 interface BuildEvaporationLayoutInput {
@@ -266,6 +267,8 @@ export const buildEvaporationLayout = ({
         ...slot,
         index,
     }));
+    const topSlotY = indexedSlots.reduce((minY, slot) => Math.min(minY, slot.y), Number.POSITIVE_INFINITY);
+    const topExitY = Number.isFinite(topSlotY) ? topSlotY : worldMinY;
 
     const layout: EvaporationLayout = {
         key: cacheKey,
@@ -273,6 +276,7 @@ export const buildEvaporationLayout = ({
         currentPath,
         slots: indexedSlots,
         capacity: indexedSlots.length,
+        topExitY,
     };
 
     evaporationLayoutCache.set(cacheKey, layout);

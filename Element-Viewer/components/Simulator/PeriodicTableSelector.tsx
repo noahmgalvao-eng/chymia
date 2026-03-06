@@ -478,7 +478,7 @@ const PeriodicTableSelector: React.FC<Props> = ({
           </div>
 
           <div className={`mb-0.5 flex justify-end transition-opacity duration-200 ease-out ${isSliderActive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-            <Switch checked={showParticles} onCheckedChange={setShowParticles} label={messages.periodicTable.xRayVision} size="sm" />
+            <Switch checked={showParticles} onCheckedChange={setShowParticles} label={messages.periodicTable.xRayVision} />
           </div>
 
           <div className={`mb-0.5 rounded-xl p-1.5 transition-opacity duration-200 ease-out ${isSliderActive ? 'border-transparent bg-transparent shadow-none' : 'border border-subtle bg-surface'}`}>

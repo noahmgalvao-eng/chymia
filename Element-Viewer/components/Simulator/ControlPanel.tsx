@@ -4,9 +4,13 @@ import { Select } from '@openai/apps-sdk-ui/components/Select';
 import { Slider } from '@openai/apps-sdk-ui/components/Slider';
 import { Switch } from '@openai/apps-sdk-ui/components/Switch';
 import {
+  PRESSURE_UNITS,
+  PressureUnit,
+  TEMP_UNITS,
   TempUnit,
   fromKelvin,
   fromPascal,
+  toKelvin,
 } from '../../utils/units';
 
 interface Props {
@@ -34,7 +38,8 @@ const ControlPanel: React.FC<Props> = ({
   onInteractionChange,
   onSliderRelease,
 }) => {
-  const [tempUnit] = useState<TempUnit>('K');
+  const [tempUnit, setTempUnit] = useState<TempUnit>('K');
+  const [pressureUnit, setPressureUnit] = useState<PressureUnit>('Pa');
   const [activeControl, setActiveControl] = useState<'temperature' | 'pressure' | null>(null);
 
   const minTempK = 0;
@@ -43,6 +48,7 @@ const ControlPanel: React.FC<Props> = ({
   const maxSliderTemp = fromKelvin(maxTempK, tempUnit);
 
   const currentTempDisplay = fromKelvin(temperature, tempUnit);
+  const currentPressureDisplay = fromPascal(pressure, pressureUnit);
 
   const logPressureValue = useMemo(() => {
     if (pressure > 0.0001) return Math.log10(pressure);

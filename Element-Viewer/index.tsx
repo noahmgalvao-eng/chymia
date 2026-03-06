@@ -11,6 +11,18 @@ const posthogKey = typeof posthogEnv.VITE_POSTHOG_KEY === 'string' ? posthogEnv.
 const posthogHost = typeof posthogEnv.VITE_POSTHOG_HOST === 'string' ? posthogEnv.VITE_POSTHOG_HOST : '';
 const posthogUiHost = typeof posthogEnv.VITE_POSTHOG_UI_HOST === 'string' ? posthogEnv.VITE_POSTHOG_UI_HOST : '';
 
+console.log("DEBUG POSTHOG:", {
+  key: posthogKey,
+  host: posthogHost,
+  isDev: import.meta.env.DEV
+});
+
+if (posthogKey && posthogHost) {
+  // ... posthog.init
+} else {
+  console.error("ERRO POSTHOG: Chaves não encontradas, inicialização cancelada.");
+}
+
 if (posthogKey && posthogHost) {
   posthog.init(posthogKey, {
     api_host: posthogHost,

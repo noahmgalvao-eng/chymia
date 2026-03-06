@@ -13,7 +13,4 @@ export interface SimulationMutableState {
     isTransitioning: boolean;
     scfTargetOpacity: number;
     areAllParticlesSettled: boolean;
-    evaporationSlotByParticleId: Map<number, number>;
-    evaporationLiftByParticleId: Map<number, number>;
-    evaporationLayoutKey: string;
 }

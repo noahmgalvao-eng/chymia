@@ -38,11 +38,39 @@ function getProductionOrigin() {
   return normalizedHost ? `https://${normalizedHost}` : null;
 }
 
+function normalizeOrigin(value) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmedValue = value.trim();
+  if (!trimmedValue) {
+    return null;
+  }
+
+  try {
+    return new URL(trimmedValue).origin;
+  } catch {
+    try {
+      return new URL(`https://${trimmedValue}`).origin;
+    } catch {
+      return null;
+    }
+  }
+}
+
+function getPostHogOrigin() {
+  return normalizeOrigin(
+    process.env.VITE_POSTHOG_HOST ?? process.env.POSTHOG_HOST ?? null
+  );
+}
+
 function buildConnectDomains(req) {
   const domains = [
     "https://chatgpt.com",
     getRequestOrigin(req),
     getProductionOrigin(),
+    getPostHogOrigin(),
   ].filter((value) => typeof value === "string" && value.length > 0);
 
   return [...new Set(domains)];
@@ -224,15 +252,6 @@ function createElementViewerServer(connectDomains) {
 // --- EXPRESS APP (for Vercel serverless) ---
 const app = express();
 
-app.options("/logs", (req, res) => {
-  res.writeHead(204, {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "content-type",
-  });
-  res.end();
-});
-
 app.options("/mcp", (req, res) => {
   res.writeHead(204, {
     "Access-Control-Allow-Origin": "*",
@@ -245,48 +264,6 @@ app.options("/mcp", (req, res) => {
 
 app.get("/", (req, res) => {
   res.status(200).send("Element Viewer MCP Server Running");
-});
-
-app.post("/logs", express.json({ limit: "32kb" }), (req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-
-  const payload = req.body;
-  const isObjectPayload =
-    payload && typeof payload === "object" && !Array.isArray(payload);
-
-  const event = isObjectPayload && typeof payload.event === "string"
-    ? payload.event
-    : "UNKNOWN_EVENT";
-  const sessionId = isObjectPayload && typeof payload.sessionId === "string"
-    ? payload.sessionId
-    : "unknown-session";
-  const timestamp = isObjectPayload && typeof payload.timestamp === "string"
-    ? payload.timestamp
-    : new Date().toISOString();
-  const userAgent = isObjectPayload && typeof payload.userAgent === "string"
-    ? payload.userAgent
-    : null;
-  const data =
-    isObjectPayload &&
-    payload.data &&
-    typeof payload.data === "object" &&
-    !Array.isArray(payload.data)
-      ? payload.data
-      : null;
-
-  console.log(
-    JSON.stringify({
-      type: "widget_telemetry",
-      receivedAt: new Date().toISOString(),
-      sessionId,
-      event,
-      timestamp,
-      data,
-      userAgent,
-    })
-  );
-
-  res.status(204).end();
 });
 
 app.all("/mcp", async (req, res) => {

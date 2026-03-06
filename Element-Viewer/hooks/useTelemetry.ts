@@ -1,4 +1,4 @@
-import posthog from 'posthog-js';
+import { usePostHog } from '@posthog/react';
 
 export type TelemetryEventName =
   | 'ELEMENT_SELECT'
@@ -16,28 +16,30 @@ export type TelemetryData = Record<string, unknown>;
 
 const SESSION_ID_PLACEHOLDER = 'posthog-session-unavailable';
 
-function getSessionId(): string {
-  try {
-    const currentSessionId = posthog.get_session_id?.();
-    return typeof currentSessionId === 'string' && currentSessionId.length > 0
-      ? currentSessionId
-      : SESSION_ID_PLACEHOLDER;
-  } catch {
-    return SESSION_ID_PLACEHOLDER;
-  }
-}
-
 export function useTelemetry() {
+  const posthog = usePostHog();
+
   const logEvent = (event: TelemetryEventName, data?: TelemetryData) => {
     try {
-      posthog.capture(event, data);
+      posthog?.capture(event, data);
     } catch {
       // Telemetry failures must not affect the widget UX.
     }
   };
 
+  let sessionId = SESSION_ID_PLACEHOLDER;
+
+  try {
+    const currentSessionId = posthog?.get_session_id?.();
+    if (typeof currentSessionId === 'string' && currentSessionId.length > 0) {
+      sessionId = currentSessionId;
+    }
+  } catch {
+    sessionId = SESSION_ID_PLACEHOLDER;
+  }
+
   return {
-    sessionId: getSessionId(),
+    sessionId,
     logEvent,
   };
 }

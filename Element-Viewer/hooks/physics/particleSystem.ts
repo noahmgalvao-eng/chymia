@@ -288,13 +288,14 @@ export const updateParticleSystem = ({
     const isEvaporationPhase = phase === MatterState.BOILING || phase === MatterState.EQUILIBRIUM_BOIL;
     const evaporationPathProgress = isEvaporationPhase ? getEvaporationPathProgress(effectiveBoilProgress) : 0;
     const vibrationAmplitude = getParticleVibrationAmplitude(currentTemp);
+    const evaporationPackingRadius = PARTICLE_RADIUS + Math.min(1.25, vibrationAmplitude * 0.22);
     const evaporationLayout = isEvaporationPhase
         ? buildEvaporationLayout({
             pathProgress: evaporationPathProgress,
             matterRect,
             meltProgress,
             state: phase,
-            effectiveRadius: PARTICLE_RADIUS + vibrationAmplitude,
+            effectiveRadius: evaporationPackingRadius,
         })
         : null;
 
@@ -431,48 +432,53 @@ export const updateParticleSystem = ({
                 particle.state === ParticleState.TRAPPED || particle.state === ParticleState.CONDENSING,
             ).length;
 
-            while (pinnedCoreCount > allowedTrapped) {
-                const condensingCandidate = getWorstPinnedCoreParticle(simState, true);
-                if (condensingCandidate) {
-                    startConstrainedEvaporation(condensingCandidate, simState, currentTemp);
+            if (pinnedCoreCount > allowedTrapped) {
+                const overTarget = pinnedCoreCount - allowedTrapped;
+                const releaseSteps = Math.max(1, Math.min(6, Math.ceil(overTarget * 0.5)));
+
+                for (let step = 0; step < releaseSteps && pinnedCoreCount > allowedTrapped; step += 1) {
+                    const condensingCandidate = getWorstPinnedCoreParticle(simState, true);
+                    if (condensingCandidate) {
+                        startConstrainedEvaporation(condensingCandidate, simState, currentTemp);
+                        pinnedCoreCount -= 1;
+                        continue;
+                    }
+
+                    const trappedCandidate = getWorstPinnedCoreParticle(simState, false);
+                    if (!trappedCandidate) break;
+                    startConstrainedEvaporation(trappedCandidate, simState, currentTemp);
                     pinnedCoreCount -= 1;
-                    continue;
                 }
+            } else if (pinnedCoreCount < allowedTrapped) {
+                const underTarget = allowedTrapped - pinnedCoreCount;
+                const condenseSteps = Math.max(1, Math.min(6, Math.ceil(underTarget * 0.5)));
 
-                const trappedCandidate = getWorstPinnedCoreParticle(simState, false);
-                if (!trappedCandidate) break;
-                startConstrainedEvaporation(trappedCandidate, simState, currentTemp);
-                pinnedCoreCount -= 1;
-            }
+                for (let step = 0; step < condenseSteps && pinnedCoreCount < allowedTrapped; step += 1) {
+                    const gasCandidate = simState.particles.find((particle) =>
+                        isFreeGasLikeParticle(particle, simState),
+                    );
+                    if (!gasCandidate) break;
 
-            while (pinnedCoreCount < allowedTrapped) {
-                const gasCandidate = simState.particles.find((particle) =>
-                    isFreeGasLikeParticle(particle, simState),
-                );
-                if (!gasCandidate) break;
-
-                gasCandidate.state = ParticleState.CONDENSING;
-                gasCandidate.vx *= 0.3;
-                gasCandidate.vy = Math.max(20, (Math.abs(gasCandidate.vy) * 0.35) + 25);
-                simState.evaporationLiftByParticleId.delete(gasCandidate.id);
-                pinnedCoreCount += 1;
+                    gasCandidate.state = ParticleState.CONDENSING;
+                    gasCandidate.vx *= 0.3;
+                    gasCandidate.vy = Math.max(20, (Math.abs(gasCandidate.vy) * 0.35) + 25);
+                    simState.evaporationLiftByParticleId.delete(gasCandidate.id);
+                    pinnedCoreCount += 1;
+                }
             }
 
             syncEvaporationSlotAssignments(simState, evaporationLayout);
 
-            let constrainedCount = simState.particles.filter((particle) =>
+            const constrainedCount = simState.particles.filter((particle) =>
                 isEvaporationSlotOccupant(particle, simState),
             ).length;
-
-            while (constrainedCount > evaporationLayout.capacity) {
+            if (constrainedCount > evaporationLayout.capacity) {
                 const constrainedRising = getWorstConstrainedRisingParticle(simState);
-                if (!constrainedRising) break;
-
-                releaseConstrainedParticleToGas(constrainedRising, simState, currentTemp);
-                constrainedCount -= 1;
+                if (constrainedRising) {
+                    releaseConstrainedParticleToGas(constrainedRising, simState, currentTemp);
+                    syncEvaporationSlotAssignments(simState, evaporationLayout);
+                }
             }
-
-            syncEvaporationSlotAssignments(simState, evaporationLayout);
         } else {
             // Standard Boiling Logic
             const targetGasCount = Math.floor(effectiveBoilProgress * effectiveParticleCount);

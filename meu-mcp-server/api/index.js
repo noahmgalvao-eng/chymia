@@ -65,12 +65,19 @@ function getPostHogOrigin() {
   );
 }
 
+function getPostHogUiOrigin() {
+  return normalizeOrigin(
+    process.env.VITE_POSTHOG_UI_HOST ?? process.env.POSTHOG_UI_HOST ?? null
+  );
+}
+
 function buildConnectDomains(req) {
   const domains = [
     "https://chatgpt.com",
     getRequestOrigin(req),
     getProductionOrigin(),
     getPostHogOrigin(),
+    getPostHogUiOrigin(),
   ].filter((value) => typeof value === "string" && value.length > 0);
 
   return [...new Set(domains)];

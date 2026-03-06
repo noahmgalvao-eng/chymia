@@ -3,6 +3,8 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { PhysicsState, ChemicalElement, MatterState, ParticleState, ViewBoxDimensions } from '../../types';
 import { MATTER_PATH_FRAMES } from '../../data/elements';
 import { interpolatePath, interpolateColor, interpolateValue } from '../../utils/interpolator';
+import { getPhaseStatusLabel } from '../../app/appDefinitions';
+import { useI18n } from '../../i18n';
 
 interface Props {
     physics: PhysicsState;
@@ -77,6 +79,7 @@ const tuneColorForTheme = (hexColor: string, isDarkTheme: boolean) => {
 const PATH_NUMBER_REGEX = /[-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?/g;
 
 const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, viewBounds, totalElements, onInspect }) => {
+    const { messages } = useI18n();
     const { pathProgress, state, particles, boilProgress, meltProgress, matterRect, gasBounds, scfOpacity, simTime, sublimationProgress, powerInput } = physics;
 
     // --- 1. SVG Path Interpolator (Puddle / Solid) ---
@@ -568,6 +571,35 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
         };
     }, [identityLabel, isReactionProduct]);
 
+    const phaseStatusLabel = useMemo(
+        () => getPhaseStatusLabel(messages, state, powerInput),
+        [messages, powerInput, state],
+    );
+
+    const phaseStatusColor = useMemo(() => {
+        if (state === MatterState.SUPERCRITICAL || state === MatterState.TRANSITION_SCF) {
+            return 'var(--color-text-danger-outline)';
+        }
+
+        if (state === MatterState.EQUILIBRIUM_TRIPLE) {
+            return 'var(--color-text-success-outline)';
+        }
+
+        if (state === MatterState.EQUILIBRIUM_MELT || state === MatterState.EQUILIBRIUM_BOIL || state === MatterState.LIQUID) {
+            return 'var(--color-text-info-outline)';
+        }
+
+        if (state === MatterState.SUBLIMATION || state === MatterState.EQUILIBRIUM_SUB || state === MatterState.GAS) {
+            return 'var(--color-text-discovery-outline)';
+        }
+
+        if (state === MatterState.MELTING || state === MatterState.BOILING) {
+            return 'var(--color-text-warning-outline)';
+        }
+
+        return 'var(--color-text-secondary)';
+    }, [state]);
+
     const handleInteraction = (e: React.MouseEvent) => {
         if (onInspect) {
             e.stopPropagation();
@@ -843,42 +875,16 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
                     <text
                         y={identityVisual.statusY}
                         textAnchor="middle"
-                        fontFamily="monospace"
-                        fontWeight="bold"
-                        fontSize="12"
-                        letterSpacing="1px"
-                        style={{ userSelect: 'none', textShadow: '0px 2px 4px rgba(0,0,0,0.5)' }}
-                        fill={
-                            state === MatterState.SUPERCRITICAL || state === MatterState.TRANSITION_SCF ? '#EF4444' :
-                                state === MatterState.EQUILIBRIUM_MELT ? '#7DD3FC' :
-                                    state === MatterState.EQUILIBRIUM_BOIL ? '#7DD3FC' :
-                                        state === MatterState.EQUILIBRIUM_TRIPLE ? '#34D399' :
-                                            state === MatterState.EQUILIBRIUM_SUB ? '#F472B6' : // Pink for Sublimation Eq
-                                                state === MatterState.SUBLIMATION ? '#C084FC' : // Purple for Sublimation
-                                                    (state === MatterState.MELTING || state === MatterState.BOILING) ? '#EAB308' :
-                                                        state === MatterState.SOLID ? '#94A3B8' :
-                                                            state === MatterState.LIQUID ? '#38BDF8' : '#A78BFA'
-                        }
+                        fontFamily="var(--font-sans)"
+                        fontWeight="var(--font-weight-semibold)"
+                        fontSize="var(--font-text-xs-size)"
+                        letterSpacing="var(--font-text-xs-tracking)"
+                        fill={phaseStatusColor}
+                        stroke="var(--color-surface-elevated)"
+                        strokeWidth="3px"
+                        style={{ paintOrder: 'stroke', userSelect: 'none' }}
                     >
-                        {state === MatterState.MELTING
-                            ? (powerInput < 0 ? 'SOLIDIFYING' : 'MELTING')
-                            : state === MatterState.BOILING
-                                ? (powerInput < 0 ? 'CONDENSING' : 'BOILING')
-                                : state === MatterState.EQUILIBRIUM_MELT
-                                    ? 'EQUILIBRIUM (SOLID + LIQUID)'
-                                    : state === MatterState.EQUILIBRIUM_BOIL
-                                        ? 'EQUILIBRIUM (LIQUID + GAS)'
-                                        : state === MatterState.EQUILIBRIUM_TRIPLE
-                                            ? 'THREE-PHASE SYSTEM (SOLID + LIQUID + GAS)'
-                                            : state === MatterState.SUPERCRITICAL
-                                                ? 'SUPERCRITICAL FLUID'
-                                                : state === MatterState.TRANSITION_SCF
-                                                    ? 'SUPERCRITICAL FLUID (Transition)'
-                                                    : state === MatterState.SUBLIMATION
-                                                        ? (powerInput < 0 ? 'DEPOSITING (GAS -> SOLID)' : 'SUBLIMATION (SOLID -> GAS)')
-                                                        : state === MatterState.EQUILIBRIUM_SUB
-                                                            ? 'SUBLIMATION EQUILIBRIUM'
-                                                            : `${state} PHASE`}
+                        {phaseStatusLabel}
                     </text>
                 </g>
 

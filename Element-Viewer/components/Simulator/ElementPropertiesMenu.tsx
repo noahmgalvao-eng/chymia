@@ -148,7 +148,10 @@ const formatElectronConfiguration = (config?: string) => {
 const PropertyCard: React.FC<{ item: PropertyItem; hideSourceId?: boolean; forceEstimated?: boolean }> = ({ item, hideSourceId = false, forceEstimated = false }) => {
   const { messages } = useI18n();
   const isNA = item.value === 'N/A';
-  const finalText = isNA ? 'N/A' : `${item.value}${item.unit ? ` ${item.unit}` : ''}`;
+  const alreadyContainsUnit = Boolean(item.unit) && item.value.toLowerCase().includes(item.unit!.toLowerCase());
+  const finalText = isNA
+    ? messages.common.notAvailable
+    : `${item.value}${item.unit && !alreadyContainsUnit ? ` ${item.unit}` : ''}`;
 
   return (
     <div className="rounded-xl border border-subtle bg-surface-secondary p-2.5">

@@ -1,4 +1,5 @@
 import { ChemicalElement, MatterState, PhysicsState } from '../types';
+import type { Messages } from '../i18n/types';
 
 export interface ContextMenuData {
   x: number;
@@ -52,73 +53,111 @@ export const safeHexColor = (value: string): string => {
 
 export const formatCompact = (value: number, unit: string) => `${roundTo(value, 2)} ${unit}`;
 
-export const phaseToReadable = (state: MatterState): string => {
+export const phaseToReadable = (messages: Messages, state: MatterState): string => {
+  const { readableStates } = messages.matter;
+
   switch (state) {
     case MatterState.SOLID:
-      return 'solido';
+      return readableStates.solid;
     case MatterState.MELTING:
-      return 'fusao (solido -> liquido)';
+      return readableStates.melting;
     case MatterState.EQUILIBRIUM_MELT:
-      return 'equilibrio solido-liquido';
+      return readableStates.equilibriumMelt;
     case MatterState.LIQUID:
-      return 'liquido';
+      return readableStates.liquid;
     case MatterState.BOILING:
-      return 'ebulicao/vaporizacao (liquido -> gas)';
+      return readableStates.boiling;
     case MatterState.EQUILIBRIUM_BOIL:
-      return 'equilibrio liquido-gas';
+      return readableStates.equilibriumBoil;
     case MatterState.EQUILIBRIUM_TRIPLE:
-      return 'ponto triplo (solido + liquido + gas)';
+      return readableStates.equilibriumTriple;
     case MatterState.SUBLIMATION:
-      return 'sublimacao (solido -> gas)';
+      return readableStates.sublimation;
     case MatterState.EQUILIBRIUM_SUB:
-      return 'equilibrio solido-gas';
+      return readableStates.equilibriumSub;
     case MatterState.GAS:
-      return 'gas';
+      return readableStates.gas;
     case MatterState.TRANSITION_SCF:
-      return 'transicao de fluido supercritico';
+      return readableStates.transitionScf;
     case MatterState.SUPERCRITICAL:
-      return 'fluido supercritico';
+      return readableStates.supercritical;
     default:
-      return 'estado desconhecido';
+      return readableStates.unknown;
   }
 };
 
-export const phaseToPresentPhases = (state: MatterState): string[] => {
+export const phaseToPresentPhases = (messages: Messages, state: MatterState): string[] => {
+  const { phaseNames } = messages.matter;
+
   switch (state) {
     case MatterState.EQUILIBRIUM_TRIPLE:
-      return ['solido', 'liquido', 'gas'];
+      return [phaseNames.solid, phaseNames.liquid, phaseNames.gas];
     case MatterState.MELTING:
     case MatterState.EQUILIBRIUM_MELT:
-      return ['solido', 'liquido'];
+      return [phaseNames.solid, phaseNames.liquid];
     case MatterState.BOILING:
     case MatterState.EQUILIBRIUM_BOIL:
-      return ['liquido', 'gas'];
+      return [phaseNames.liquid, phaseNames.gas];
     case MatterState.SUBLIMATION:
     case MatterState.EQUILIBRIUM_SUB:
-      return ['solido', 'gas'];
+      return [phaseNames.solid, phaseNames.gas];
     case MatterState.TRANSITION_SCF:
     case MatterState.SUPERCRITICAL:
-      return ['fluido supercritico'];
+      return [phaseNames.supercriticalFluid];
     case MatterState.LIQUID:
-      return ['liquido'];
+      return [phaseNames.liquid];
     case MatterState.GAS:
-      return ['gas'];
+      return [phaseNames.gas];
     case MatterState.SOLID:
     default:
-      return ['solido'];
+      return [phaseNames.solid];
   }
 };
 
-export const getSupportedEquilibria = (element: ChemicalElement): string[] => {
+export const getSupportedEquilibria = (messages: Messages, element: ChemicalElement): string[] => {
   const hasTriplePoint = !!element.properties.triplePoint;
   const canSublimationEq = hasTriplePoint && !!element.properties.enthalpyFusionJmol;
+  const { equilibria } = messages.matter;
 
-  const equilibria = ['EQUILIBRIUM_MELT (solido + liquido)', 'EQUILIBRIUM_BOIL (liquido + gas)'];
+  const results = [equilibria.melt, equilibria.boil];
 
-  if (canSublimationEq) equilibria.push('EQUILIBRIUM_SUB (solido + gas)');
-  if (hasTriplePoint) equilibria.push('EQUILIBRIUM_TRIPLE (solido + liquido + gas)');
+  if (canSublimationEq) results.push(equilibria.sublimation);
+  if (hasTriplePoint) results.push(equilibria.triple);
 
-  return equilibria;
+  return results;
+};
+
+export const getPhaseStatusLabel = (messages: Messages, state: MatterState, powerInput: number): string => {
+  const { visualizerStatus } = messages.matter;
+
+  switch (state) {
+    case MatterState.SOLID:
+      return visualizerStatus.solidPhase;
+    case MatterState.MELTING:
+      return powerInput < 0 ? visualizerStatus.solidifying : visualizerStatus.melting;
+    case MatterState.EQUILIBRIUM_MELT:
+      return visualizerStatus.equilibriumSolidLiquid;
+    case MatterState.LIQUID:
+      return visualizerStatus.liquidPhase;
+    case MatterState.BOILING:
+      return powerInput < 0 ? visualizerStatus.condensing : visualizerStatus.boiling;
+    case MatterState.EQUILIBRIUM_BOIL:
+      return visualizerStatus.equilibriumLiquidGas;
+    case MatterState.EQUILIBRIUM_TRIPLE:
+      return visualizerStatus.threePhaseSystem;
+    case MatterState.SUBLIMATION:
+      return powerInput < 0 ? visualizerStatus.depositing : visualizerStatus.sublimation;
+    case MatterState.EQUILIBRIUM_SUB:
+      return visualizerStatus.sublimationEquilibrium;
+    case MatterState.GAS:
+      return visualizerStatus.gasPhase;
+    case MatterState.TRANSITION_SCF:
+      return visualizerStatus.supercriticalFluidTransition;
+    case MatterState.SUPERCRITICAL:
+      return visualizerStatus.supercriticalFluid;
+    default:
+      return visualizerStatus.fallback(state);
+  }
 };
 
 export const readOpenAiStructuredContent = (): unknown => {

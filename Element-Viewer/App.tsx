@@ -26,6 +26,7 @@ import { predictMatterState } from './hooks/physics/phaseCalculations';
 import { useElementViewerChat } from './hooks/useElementViewerChat';
 import { useAppChatControls } from './hooks/useAppChatControls';
 import { useTelemetry } from './hooks/useTelemetry';
+import { useI18n } from './i18n';
 import {
     ContextMenuData,
     IAReactionSubstance,
@@ -57,6 +58,7 @@ const readPeriodicTableControlSessionState = (): boolean => {
 };
 
 function App() {
+    const { messages } = useI18n();
     // State for Selection (Array for Multi-Element)
     const [selectedElements, setSelectedElements] = useState<ChemicalElement[]>([ELEMENTS[0]]);
     const [reactionProductsCache, setReactionProductsCache] = useState<ChemicalElement[]>([]);
@@ -163,11 +165,15 @@ function App() {
             const absDelta = Math.abs(deltaToTargetK);
             const powerInput = shouldFallbackToPredicted ? 0 : currentState.powerInput;
 
-            let tendenciaTermica = 'estavel';
+            let tendenciaTermica = messages.app.widgetState.thermalTrendStable;
             if (absDelta > 0.2) {
-                tendenciaTermica = deltaToTargetK > 0 ? 'aquecendo em direcao ao alvo' : 'resfriando em direcao ao alvo';
+                tendenciaTermica = deltaToTargetK > 0
+                    ? messages.app.widgetState.thermalTrendHeatingTowardTarget
+                    : messages.app.widgetState.thermalTrendCoolingTowardTarget;
             } else if (Math.abs(powerInput) > 0.05) {
-                tendenciaTermica = powerInput > 0 ? 'aquecendo levemente' : 'resfriando levemente';
+                tendenciaTermica = powerInput > 0
+                    ? messages.app.widgetState.thermalTrendHeatingLightly
+                    : messages.app.widgetState.thermalTrendCoolingLightly;
             }
 
             const hasTriplePoint = !!el.properties.triplePoint;
@@ -186,8 +192,8 @@ function App() {
                 nome: el.name,
                 simbolo: el.symbol,
                 estado_da_materia_codigo: effectiveState,
-                estado_da_materia: phaseToReadable(effectiveState),
-                fases_presentes: phaseToPresentPhases(effectiveState),
+                estado_da_materia: phaseToReadable(messages, effectiveState),
+                fases_presentes: phaseToPresentPhases(messages, effectiveState),
                 tendencia_termica: tendenciaTermica,
                 temperatura_efetiva_atual_K: roundTo(effectiveTempK, 2),
                 delta_para_temperatura_alvo_K: roundTo(deltaToTargetK, 2),
@@ -208,7 +214,7 @@ function App() {
                     esta_no_ponto_triplo_agora: isAtTriplePointNow,
                     esta_em_regime_supercritico_agora: isAtSupercriticalNow
                 },
-                estados_de_equilibrio_suportados_no_modelo: getSupportedEquilibria(el)
+                estados_de_equilibrio_suportados_no_modelo: getSupportedEquilibria(messages, el)
             };
         });
 
@@ -696,7 +702,7 @@ function App() {
                 className="fixed z-40 flex flex-col gap-3"
                 style={{ top: `${leftControlTop}px`, left: `${16 + insets.left}px` }}
             >
-                <Tooltip content="Toggle simulation speed" contentClassName={TOOLTIP_CLASS}>
+                <Tooltip content={messages.app.controls.toggleSimulationSpeed} contentClassName={TOOLTIP_CLASS}>
                     <span>
                         <Button color="secondary" variant="soft" pill size="lg" className={desktopLabelButtonClass} onClick={handleToggleSpeed}>
                             <Speed style={controlIconStyle} />
@@ -705,7 +711,7 @@ function App() {
                     </span>
                 </Tooltip>
 
-                <Tooltip content={isPaused ? 'Resume simulation' : 'Pause simulation'} contentClassName={TOOLTIP_CLASS}>
+                <Tooltip content={isPaused ? messages.app.controls.resumeSimulation : messages.app.controls.pauseSimulation} contentClassName={TOOLTIP_CLASS}>
                     <span>
                         <Button
                             color="secondary"
@@ -720,7 +726,7 @@ function App() {
                     </span>
                 </Tooltip>
 
-                <Tooltip content={isRecording ? 'Stop recording' : 'Start recording'} contentClassName={TOOLTIP_CLASS}>
+                <Tooltip content={isRecording ? messages.app.controls.stopRecording : messages.app.controls.startRecording} contentClassName={TOOLTIP_CLASS}>
                     <span>
                         <Button
                             color={isRecording ? 'danger' : 'secondary'}
@@ -745,7 +751,7 @@ function App() {
                     </span>
                 </Tooltip>
 
-                <Tooltip content={isSidebarOpen ? 'Hide periodic table' : 'Open periodic table'} contentClassName={TOOLTIP_CLASS}>
+                <Tooltip content={isSidebarOpen ? messages.app.controls.hidePeriodicTable : messages.app.controls.openPeriodicTable} contentClassName={TOOLTIP_CLASS}>
                     <span>
                         <Button
                             color="secondary"
@@ -756,7 +762,7 @@ function App() {
                             onClick={handlePeriodicTableButtonClick}
                         >
                             <SettingsSlider style={controlIconStyle} />
-                            {!shouldCompactPeriodicTableButton && <span className="text-xs font-semibold">Open Periodic Table</span>}
+                            {!shouldCompactPeriodicTableButton && <span className="text-xs font-semibold">{messages.app.controls.openPeriodicTableButton}</span>}
                         </Button>
                     </span>
                 </Tooltip>
@@ -766,7 +772,7 @@ function App() {
                 className="fixed z-20 flex flex-col gap-2"
                 style={{ top: `${16 + insets.top}px`, right: `${16 + insets.right}px` }}
             >
-                <Tooltip content={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'} contentClassName={TOOLTIP_CLASS}>
+                <Tooltip content={isFullscreen ? messages.app.controls.exitFullscreen : messages.app.controls.enterFullscreen} contentClassName={TOOLTIP_CLASS}>
                     <span>
                         <Button color="secondary" variant="soft" pill uniform className={desktopUniformButtonClass} onClick={handleToggleFullscreenWithTelemetry}>
                             {isFullscreen ? <Collapse style={controlIconStyle} /> : <Expand style={controlIconStyle} />}
@@ -774,7 +780,7 @@ function App() {
                     </span>
                 </Tooltip>
 
-                <Tooltip content="Ask ChatGPT about the current simulation" contentClassName={TOOLTIP_CLASS}>
+                <Tooltip content={messages.app.controls.askChatGPTAboutSimulation} contentClassName={TOOLTIP_CLASS}>
                     <span>
                         <Button color="info" variant="soft" pill uniform className={desktopUniformButtonClass} onClick={handleInfoButtonClickWithTelemetry}>
                             <ChatTripleDots
@@ -796,7 +802,7 @@ function App() {
                             pill
                             uniform
                             className={desktopUniformButtonClass}
-                            aria-label="O que posso pedir ao ChatGPT?"
+                            aria-label={messages.app.controls.assistantIdeasAriaLabel}
                             onClick={handlePromptHelpClick}
                         >
                             <LightbulbGlow
@@ -817,29 +823,29 @@ function App() {
                         className="z-[130] rounded-2xl border border-default bg-surface shadow-lg"
                     >
                         <div className="space-y-2 p-3 text-sm text-default">
-                            <p className="heading-xs text-default">O que posso pedir ao ChatGPT?</p>
+                            <p className="heading-xs text-default">{messages.app.assistantPopover.title}</p>
                             <ol className="list-decimal space-y-2 pl-4">
                                 <li>
-                                    Pedir elementos, temperatura e pressão de sua escolha.
+                                    {messages.app.assistantPopover.itemOne}
                                     <p className="italic text-secondary text-xs">
-                                        Ex: &quot;Agora quero ver carbono, sódio e hélio a 5000 K e 2 ATM&quot;
+                                        {messages.app.assistantPopover.itemOneExample}
                                     </p>
                                 </li>
                                 <li>
-                                    Surpreenda-se com sugestões de combinações de elementos.
+                                    {messages.app.assistantPopover.itemTwo}
                                     <p className="italic text-secondary text-xs">
-                                        Ex: &quot;Coloque elementos interessantes de se ver juntos!&quot;
+                                        {messages.app.assistantPopover.itemTwoExample}
                                     </p>
                                 </li>
                                 <li>
-                                    Ao selecionar 2 ou mais elementos, digite &quot;Reagir&quot; no chat e veja a mágica acontecer!
+                                    {messages.app.assistantPopover.itemThree}
                                 </li>
                                 <li>
-                                    Solicitar uma explicação do que está sendo visto na tela da simulação.
+                                    {messages.app.assistantPopover.itemFour}
                                 </li>
                             </ol>
                             <p className="border-t border-subtle pt-2 text-xs italic text-secondary">
-                                Utilize o app no modo fullscreen para melhor experiência conversacional.
+                                {messages.app.assistantPopover.footer}
                             </p>
                         </div>
                     </Popover.Content>

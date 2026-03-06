@@ -1,5 +1,6 @@
-﻿import { useChatGPT } from './useChatGPT';
+import { useChatGPT } from './useChatGPT';
 import { ChemicalElement } from '../types';
+import { useI18n } from '../i18n';
 
 interface UseElementViewerChatProps {
     globalTemperature: number;
@@ -12,6 +13,7 @@ export function useElementViewerChat({
     globalPressure,
     selectedElements
 }: UseElementViewerChatProps) {
+    const { messages } = useI18n();
 
     const {
         displayMode,
@@ -31,11 +33,12 @@ export function useElementViewerChat({
         }
 
         const isMulti = selectedElements.length > 1;
-        const baseContext = `Target temperature ${globalTemperature.toFixed(1)} K and pressure ${globalPressure.toExponential(2)} Pa.`;
-
+        const formattedTemperature = globalTemperature.toFixed(1);
+        const formattedPressure = globalPressure.toExponential(2);
         const prompt = isMulti
-            ? `${baseContext} Briefly explain what is happening, quickly compare the differences between the selected elements under these conditions, and include one educational science fact. Keep the response natural and conversational, not rigid bullet points.`
-            : `${baseContext} Briefly explain what is happening with the selected element and include one educational science fact. Keep the response natural and conversational, not rigid bullet points.`;
+            ? messages.app.chatPrompts.multi(formattedTemperature, formattedPressure)
+            : messages.app.chatPrompts.single(formattedTemperature, formattedPressure);
+
         await sendFollowUpMessage(prompt);
     };
 

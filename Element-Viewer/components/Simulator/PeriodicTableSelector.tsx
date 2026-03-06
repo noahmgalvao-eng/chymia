@@ -18,6 +18,7 @@ import {
   fromKelvin,
   fromPascal
 } from '../../utils/units';
+import { useI18n } from '../../i18n';
 
 interface Props {
   selectedElements: ChemicalElement[];
@@ -139,17 +140,17 @@ const TONE_STYLES: Record<ElementTone, ToneStyle> = {
   },
 };
 
-const LEGEND_ITEMS: Array<{ tone: ElementTone; label: string }> = [
-  { tone: 'ametais', label: 'Ametais' },
-  { tone: 'metaisAlcalinos', label: 'Metais alcalinos' },
-  { tone: 'metaisAlcalinoTerrosos', label: 'Metais alcalino-terrosos' },
-  { tone: 'gasesNobres', label: 'Gases nobres' },
-  { tone: 'halogenios', label: 'Halogênios' },
-  { tone: 'semimetais', label: 'Semimetais' },
-  { tone: 'outrosMetais', label: 'Outros metais' },
-  { tone: 'lantanideos', label: 'Lantanídeos' },
-  { tone: 'actinidios', label: 'Actinídeos' },
-  { tone: 'metaisTransicao', label: 'Metais de transição' },
+const LEGEND_ITEMS: ElementTone[] = [
+  'ametais',
+  'metaisAlcalinos',
+  'metaisAlcalinoTerrosos',
+  'gasesNobres',
+  'halogenios',
+  'semimetais',
+  'outrosMetais',
+  'lantanideos',
+  'actinidios',
+  'metaisTransicao',
 ];
 
 type PeriodicCellStyle = React.CSSProperties & {
@@ -243,6 +244,7 @@ const PeriodicTableSelector: React.FC<Props> = ({
   showParticles,
   setShowParticles,
 }) => {
+  const { messages, formatNumber } = useI18n();
   const [activeSlider, setActiveSlider] = useState<'temperature' | 'pressure' | null>(null);
   const [tempUnit, setTempUnit] = useState<TempUnit>('K');
   const [pressureUnit, setPressureUnit] = useState<PressureUnit>('Pa');
@@ -271,15 +273,15 @@ const PeriodicTableSelector: React.FC<Props> = ({
   const defaultTemperatureLabel = useMemo(() => {
     const valueInCurrentUnit = fromKelvin(DEFAULT_TEMPERATURE_K, tempUnit);
     const decimals = tempUnit === 'K' ? 0 : 2;
-    const formatted = Number(valueInCurrentUnit.toFixed(decimals)).toLocaleString();
+    const formatted = formatNumber(Number(valueInCurrentUnit.toFixed(decimals)), { maximumFractionDigits: decimals });
     return `${formatted} ${TEMP_UNIT_SYMBOLS[tempUnit]}`;
-  }, [tempUnit]);
+  }, [formatNumber, tempUnit]);
 
   const defaultPressureLabel = useMemo(() => {
     const valueInCurrentUnit = fromPascal(DEFAULT_PRESSURE_PA, pressureUnit);
-    const formatted = Number(valueInCurrentUnit.toPrecision(6)).toLocaleString();
+    const formatted = formatNumber(Number(valueInCurrentUnit.toPrecision(6)), { maximumSignificantDigits: 6 });
     return `${formatted} ${pressureUnit}`;
-  }, [pressureUnit]);
+  }, [formatNumber, pressureUnit]);
 
   const flushDragOffset = useCallback(() => {
     const nextOffset = pendingDragOffset.current;
@@ -366,9 +368,11 @@ const PeriodicTableSelector: React.FC<Props> = ({
 
   const displayedTemperature = fromKelvin(temperature, tempUnit);
   const displayedPressure = fromPascal(pressure, pressureUnit);
-  const currentTemperatureLabel = `${Number(displayedTemperature.toFixed(tempUnit === 'K' ? 0 : 2)).toLocaleString()} ${tempUnit}`;
+  const currentTemperatureLabel = `${formatNumber(Number(displayedTemperature.toFixed(tempUnit === 'K' ? 0 : 2)), {
+    maximumFractionDigits: tempUnit === 'K' ? 0 : 2,
+  })} ${TEMP_UNIT_SYMBOLS[tempUnit]}`;
   const currentPressureLabel = pressure > 0
-    ? `${Number(displayedPressure.toPrecision(6)).toLocaleString()} ${pressureUnit}`
+    ? `${formatNumber(Number(displayedPressure.toPrecision(6)), { maximumSignificantDigits: 6 })} ${pressureUnit}`
     : `0 ${pressureUnit}`;
   const isSliderActive = activeSlider !== null;
 
@@ -469,12 +473,12 @@ const PeriodicTableSelector: React.FC<Props> = ({
           <div className="mb-0 flex justify-center pt-0">
             <Button className="h-8 min-h-8 px-2.5" color="secondary" variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
               <ChevronDown className="size-4" />
-              Hide
+              {messages.periodicTable.hide}
             </Button>
           </div>
 
           <div className={`mb-0.5 flex justify-end transition-opacity duration-200 ease-out ${isSliderActive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-            <Switch checked={showParticles} onCheckedChange={setShowParticles} label="X-Ray Vision" size="sm" />
+            <Switch checked={showParticles} onCheckedChange={setShowParticles} label={messages.periodicTable.xRayVision} size="sm" />
           </div>
 
           <div className={`mb-0.5 rounded-xl p-1.5 transition-opacity duration-200 ease-out ${isSliderActive ? 'border-transparent bg-transparent shadow-none' : 'border border-subtle bg-surface'}`}>
@@ -482,7 +486,7 @@ const PeriodicTableSelector: React.FC<Props> = ({
               <div className="mb-1 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
                 <p className="flex items-center gap-1 text-sm font-semibold text-default">
                   <FileZip className="size-4" />
-                  Temperature
+                  {messages.periodicTable.temperature}
                 </p>
                 <div className="inline-flex h-8 min-h-8 items-center justify-center rounded-full border border-default bg-surface-secondary px-3 text-sm font-semibold text-default">
                   {currentTemperatureLabel}
@@ -494,7 +498,7 @@ const PeriodicTableSelector: React.FC<Props> = ({
                     size="sm"
                     uniform
                     className="h-8 min-h-8 w-8 min-w-8 p-0"
-                    aria-label={`Reset temperature to ${defaultTemperatureLabel}`}
+                    aria-label={messages.periodicTable.resetTemperatureTo(defaultTemperatureLabel)}
                     onClick={() => setTemperature(DEFAULT_TEMPERATURE_K)}
                   >
                     <Reload className="size-4" />
@@ -533,7 +537,7 @@ const PeriodicTableSelector: React.FC<Props> = ({
               <div className="mb-1 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
                 <p className="flex items-center gap-1 text-sm font-semibold text-default">
                   <SpeedometerLatencySpeed className="size-4" />
-                  Pressure
+                  {messages.periodicTable.pressure}
                 </p>
                 <div className="inline-flex h-8 min-h-8 items-center justify-center rounded-full border border-default bg-surface-secondary px-3 text-sm font-semibold text-default">
                   {currentPressureLabel}
@@ -545,7 +549,7 @@ const PeriodicTableSelector: React.FC<Props> = ({
                     size="sm"
                     uniform
                     className="h-8 min-h-8 w-8 min-w-8 p-0"
-                    aria-label={`Reset pressure to ${defaultPressureLabel}`}
+                    aria-label={messages.periodicTable.resetPressureTo(defaultPressureLabel)}
                     onClick={() => setPressure(DEFAULT_PRESSURE_PA)}
                   >
                     <Reload className="size-4" />
@@ -584,7 +588,7 @@ const PeriodicTableSelector: React.FC<Props> = ({
                 <Popover>
                   <Popover.Trigger>
                     <Button color="secondary" variant="outline" size="sm">
-                      Legenda
+                      {messages.periodicTable.legend}
                     </Button>
                   </Popover.Trigger>
                   <Popover.Content
@@ -598,12 +602,12 @@ const PeriodicTableSelector: React.FC<Props> = ({
                     <div className="p-3">
                       <ul className="periodic-legend-list">
                         {LEGEND_ITEMS.map((item) => (
-                          <li key={item.label} className="periodic-legend-item">
+                          <li key={item} className="periodic-legend-item">
                             <span
                               className="periodic-legend-swatch"
-                              style={{ '--legend-swatch-color': TONE_STYLES[item.tone].base } as LegendSwatchStyle}
+                              style={{ '--legend-swatch-color': TONE_STYLES[item].base } as LegendSwatchStyle}
                             />
-                            <p className="periodic-legend-label text-xs text-secondary">{item.label}</p>
+                            <p className="periodic-legend-label text-xs text-secondary">{messages.periodicTable.legendItems[item]}</p>
                           </li>
                         ))}
                       </ul>
@@ -613,7 +617,7 @@ const PeriodicTableSelector: React.FC<Props> = ({
               </div>
             </div>
             <SegmentedControl
-              aria-label="Selection mode"
+              aria-label={messages.periodicTable.selectionMode}
               value={isMultiSelect ? 'compare' : 'single'}
               size="sm"
               onChange={(next) => {
@@ -622,8 +626,8 @@ const PeriodicTableSelector: React.FC<Props> = ({
                 }
               }}
             >
-              <SegmentedControl.Option value="single">Single</SegmentedControl.Option>
-              <SegmentedControl.Option value="compare">Compare</SegmentedControl.Option>
+              <SegmentedControl.Option value="single">{messages.periodicTable.single}</SegmentedControl.Option>
+              <SegmentedControl.Option value="compare">{messages.periodicTable.compare}</SegmentedControl.Option>
             </SegmentedControl>
             <div className="flex items-center gap-2">
               <div className="flex -space-x-2">
@@ -657,7 +661,7 @@ const PeriodicTableSelector: React.FC<Props> = ({
             <div className="periodic-grid">
               {reactionProducts.length > 0 && (
                 <div className="periodic-reaction-cluster">
-                  <p className="periodic-reaction-label">Substâncias</p>
+                  <p className="periodic-reaction-label">{messages.periodicTable.substances}</p>
                   <div className="periodic-reaction-list">
                     {reactionProducts.map((reaction) => {
                       const isSelected = selectedElements.some((selected) => selected.atomicNumber === reaction.atomicNumber);

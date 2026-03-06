@@ -12,6 +12,7 @@ import { CopyTooltip } from '@openai/apps-sdk-ui/components/Tooltip';
 import { ChemicalElement, MatterState, PhysicsState } from '../../types';
 import { SOURCE_DATA } from '../../data/periodic_table_source';
 import { calculatePhaseBoundaries, predictMatterState } from '../../hooks/physics/phaseCalculations';
+import { useI18n } from '../../i18n';
 
 interface Props {
   data: {
@@ -77,19 +78,20 @@ const SUPERSCRIPT_MAP: Record<string, string> = {
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const clampActionTemperature = (value: number) => clamp(value, 1, 6000);
 
-const formatNumber = (value: number, maxFractionDigits = 4) =>
-  value.toLocaleString(undefined, { maximumFractionDigits: maxFractionDigits });
+const formatNumber = (value: number, locale: string, maxFractionDigits = 4) =>
+  value.toLocaleString(locale, { maximumFractionDigits: maxFractionDigits });
 
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const parseDisplayValue = (
   rawValue: unknown,
+  locale: string,
   unit?: string,
   fallbackNumber?: number,
 ) => {
   try {
     if (typeof rawValue === 'number' && Number.isFinite(rawValue)) {
-      return { value: formatNumber(rawValue), estimated: false, na: false };
+      return { value: formatNumber(rawValue, locale), estimated: false, na: false };
     }
 
     if (typeof rawValue === 'string') {
@@ -113,7 +115,7 @@ const parseDisplayValue = (
     }
 
     if (typeof fallbackNumber === 'number' && Number.isFinite(fallbackNumber)) {
-      return { value: formatNumber(fallbackNumber), estimated: false, na: false };
+      return { value: formatNumber(fallbackNumber, locale), estimated: false, na: false };
     }
   } catch {
     return { value: 'N/A', estimated: false, na: true };
@@ -144,6 +146,7 @@ const formatElectronConfiguration = (config?: string) => {
 };
 
 const PropertyCard: React.FC<{ item: PropertyItem; hideSourceId?: boolean; forceEstimated?: boolean }> = ({ item, hideSourceId = false, forceEstimated = false }) => {
+  const { messages } = useI18n();
   const isNA = item.value === 'N/A';
   const finalText = isNA ? 'N/A' : `${item.value}${item.unit ? ` ${item.unit}` : ''}`;
 
@@ -152,7 +155,7 @@ const PropertyCard: React.FC<{ item: PropertyItem; hideSourceId?: boolean; force
       <div className="flex items-start justify-between gap-2">
         <p className="break-words text-3xs uppercase tracking-wide text-secondary">{item.label}</p>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5 text-3xs">
-          {(forceEstimated || item.estimated) && <span className="font-semibold uppercase tracking-wide text-warning">*estimado</span>}
+          {(forceEstimated || item.estimated) && <span className="font-semibold uppercase tracking-wide text-warning">{messages.common.estimated}</span>}
           {!hideSourceId && typeof item.sourceId === 'number' && <span className="text-tertiary">[{item.sourceId}]</span>}
         </div>
       </div>
@@ -183,51 +186,56 @@ const PhaseActionButton: React.FC<PhaseActionButtonProps> = ({
   color,
   variant = 'soft',
   colSpanTwo = false,
-}) => (
-  <div className={`relative ${colSpanTwo ? 'col-span-2' : ''}`}>
-    <Button
-      color={color}
-      variant={variant}
-      block
-      size="sm"
-      className="h-8 min-h-8 whitespace-nowrap px-2 pr-8 text-xs font-semibold"
-      disabled={disabled}
-      onClick={onClick}
-    >
-      {heatsUp ? <ArrowUp className="size-3.5" /> : <ArrowDown className="size-3.5" />}
-      <span>{label}</span>
-    </Button>
+}) => {
+  const { messages } = useI18n();
 
-    <Popover>
-      <Popover.Trigger>
-        <Button
-          color="secondary"
-          variant="soft"
-          size="2xs"
-          uniform
-          pill
-          className="absolute right-1 top-1 z-20 h-5 min-h-5 w-5 min-w-5 p-0 text-[10px] font-bold"
-          aria-label={`Help: ${label}`}
-          onClick={(event) => event.stopPropagation()}
-        >
-          ?
-        </Button>
-      </Popover.Trigger>
-      <Popover.Content
-        side="top"
-        align="end"
-        sideOffset={6}
-        minWidth={260}
-        maxWidth={360}
-        className="z-[130] rounded-2xl border border-default bg-surface shadow-lg"
+  return (
+    <div className={`relative ${colSpanTwo ? 'col-span-2' : ''}`}>
+      <Button
+        color={color}
+        variant={variant}
+        block
+        size="sm"
+        className="h-8 min-h-8 whitespace-nowrap px-2 pr-8 text-xs font-semibold"
+        disabled={disabled}
+        onClick={onClick}
       >
-        <p className="p-3 text-xs leading-relaxed text-default">{helpText}</p>
-      </Popover.Content>
-    </Popover>
-  </div>
-);
+        {heatsUp ? <ArrowUp className="size-3.5" /> : <ArrowDown className="size-3.5" />}
+        <span>{label}</span>
+      </Button>
+
+      <Popover>
+        <Popover.Trigger>
+          <Button
+            color="secondary"
+            variant="soft"
+            size="2xs"
+            uniform
+            pill
+            className="absolute right-1 top-1 z-20 h-5 min-h-5 w-5 min-w-5 p-0 text-[10px] font-bold"
+            aria-label={messages.common.helpAria(label)}
+            onClick={(event) => event.stopPropagation()}
+          >
+            ?
+          </Button>
+        </Popover.Trigger>
+        <Popover.Content
+          side="top"
+          align="end"
+          sideOffset={6}
+          minWidth={260}
+          maxWidth={360}
+          className="z-[130] rounded-2xl border border-default bg-surface shadow-lg"
+        >
+          <p className="p-3 text-xs leading-relaxed text-default">{helpText}</p>
+        </Popover.Content>
+      </Popover>
+    </div>
+  );
+};
 
 const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperature, onSetPressure }) => {
+  const { locale, messages, formatNumber } = useI18n();
   const { element, physicsState, x, y } = data;
   const [showFullDescription, setShowFullDescription] = useState(false);
   const isReactionProduct = element.category === 'reaction_product';
@@ -241,7 +249,7 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
     : 'https://en.wikipedia.org/wiki/Periodic_table';
 
   const fmt = (value: number, unit = '') =>
-    `${value.toLocaleString(undefined, { maximumFractionDigits: 3 })}${unit}`;
+    `${formatNumber(value, { maximumFractionDigits: 3 })}${unit}`;
 
   const triplePoint = element.properties.triplePoint;
   const criticalPoint = element.properties.criticalPoint;
@@ -319,10 +327,16 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
     : 'N/A';
   const criticalPressureLabel = hasCriticalPoint
     ? fmt(criticalPoint!.pressurePa / 1000, ' kPa')
-    : 'N/A';
-  const sublimationPhaseFrom = isGasLike ? 'gasosa' : 'solida';
-  const sublimationPhaseTo = isGasLike ? 'solida' : 'gasosa';
-  const sublimationTemperatureCondition = isGasLike ? 'abaixo' : 'acima';
+    : messages.common.notAvailable;
+  const sublimationPhaseFrom = isGasLike
+    ? messages.propertiesMenu.actions.terms.gaseousAdjective
+    : messages.propertiesMenu.actions.terms.solidAdjective;
+  const sublimationPhaseTo = isGasLike
+    ? messages.propertiesMenu.actions.terms.solidAdjective
+    : messages.propertiesMenu.actions.terms.gaseousAdjective;
+  const sublimationTemperatureCondition = isGasLike
+    ? messages.propertiesMenu.actions.terms.below
+    : messages.propertiesMenu.actions.terms.above;
 
   const isSolidLikePrediction = (state: MatterState) =>
     [MatterState.SOLID, MatterState.EQUILIBRIUM_MELT].includes(state);
@@ -408,108 +422,128 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
 
   const atomicMass = parseDisplayValue(
     typeof sourceInfo?.atomic_mass === 'number' ? sourceInfo.atomic_mass : element.mass,
+    locale,
     'u',
   );
-  const density = parseDisplayValue(element.properties.densityDisplay);
-  const atomicRadius = parseDisplayValue(element.properties.atomicRadiusDisplay, 'pm', element.properties.atomicRadiusPm);
+  const density = parseDisplayValue(element.properties.densityDisplay, locale);
+  const atomicRadius = parseDisplayValue(element.properties.atomicRadiusDisplay, locale, 'pm', element.properties.atomicRadiusPm);
   const electronAffinity = parseDisplayValue(
     typeof sourceInfo?.electron_affinity === 'number' ? sourceInfo.electron_affinity : undefined,
+    locale,
     'kJ/mol',
   );
   const ionizationEnergy = parseDisplayValue(
     Array.isArray(sourceInfo?.ionization_energies) ? sourceInfo.ionization_energies[0] : undefined,
+    locale,
     'kJ/mol',
   );
-  const oxidationStates = parseDisplayValue(element.properties.oxidationStatesDisplay);
+  const oxidationStates = parseDisplayValue(element.properties.oxidationStatesDisplay, locale);
   const electronConfigurationRaw =
     typeof sourceInfo?.electron_configuration_semantic === 'string'
       ? sourceInfo.electron_configuration_semantic
       : typeof element.properties.electronConfiguration === 'string'
         ? element.properties.electronConfiguration
         : 'N/A';
-  const electronConfiguration = parseDisplayValue(electronConfigurationRaw);
+  const electronConfiguration = parseDisplayValue(electronConfigurationRaw, locale);
 
-  const meltingPoint = parseDisplayValue(element.properties.meltingPointDisplay, 'K', element.properties.meltingPointK);
-  const boilingPoint = parseDisplayValue(element.properties.boilingPointDisplay, 'K', element.properties.boilingPointK);
-  const triplePointTemp = parseDisplayValue(element.properties.triplePointTempDisplay, 'K', triplePoint?.tempK);
+  const meltingPoint = parseDisplayValue(element.properties.meltingPointDisplay, locale, 'K', element.properties.meltingPointK);
+  const boilingPoint = parseDisplayValue(element.properties.boilingPointDisplay, locale, 'K', element.properties.boilingPointK);
+  const triplePointTemp = parseDisplayValue(element.properties.triplePointTempDisplay, locale, 'K', triplePoint?.tempK);
   const triplePointPress = parseDisplayValue(
     element.properties.triplePointPressDisplay,
+    locale,
     'kPa',
     typeof triplePoint?.pressurePa === 'number' ? triplePoint.pressurePa / 1000 : undefined,
   );
   const tripleTempLabel = triplePointTemp.na
-    ? 'N/A'
+    ? messages.common.notAvailable
     : `${triplePointTemp.value} K`;
   const triplePressureLabel = triplePointPress.na
-    ? 'N/A'
+    ? messages.common.notAvailable
     : `${triplePointPress.value} kPa`;
-  const liquefyExplanation = `A fase liquida a partir da solida ocorre quando a temperatura do sistema esta acima da temperatura de fusao (${fmt(actionMeltingPoint, ' K')}), abaixo da temperatura de ebulicao (${fmt(actionBoilingPoint, ' K')}) e acima da pressao de ponto triplo (${triplePressureLabel}).`;
-  const criticalPointTemp = parseDisplayValue(element.properties.criticalPointTempDisplay, 'K', criticalPoint?.tempK);
+  const liquefyExplanation = messages.propertiesMenu.actions.liquefyHelp(
+    fmt(actionMeltingPoint, ' K'),
+    fmt(actionBoilingPoint, ' K'),
+    triplePressureLabel,
+  );
+  const condenseExplanation = messages.propertiesMenu.actions.condenseHelp(
+    fmt(actionMeltingPoint, ' K'),
+    fmt(actionBoilingPoint, ' K'),
+    triplePressureLabel,
+  );
+  const criticalPointTemp = parseDisplayValue(element.properties.criticalPointTempDisplay, locale, 'K', criticalPoint?.tempK);
   const criticalPointPress = parseDisplayValue(
     element.properties.criticalPointPressDisplay,
+    locale,
     'kPa',
     typeof criticalPoint?.pressurePa === 'number' ? criticalPoint.pressurePa / 1000 : undefined,
   );
   const thermalConductivity = parseDisplayValue(
     element.properties.thermalConductivityDisplay,
+    locale,
     'W/mK',
     element.properties.thermalConductivity,
   );
   const specificHeatSolid = parseDisplayValue(
     element.properties.specificHeatSolidDisplay,
+    locale,
     'J/kgK',
     element.properties.specificHeatSolid,
   );
   const specificHeatLiquid = parseDisplayValue(
     element.properties.specificHeatLiquidDisplay,
+    locale,
     'J/kgK',
     element.properties.specificHeatLiquid,
   );
   const specificHeatGas = parseDisplayValue(
     element.properties.specificHeatGasDisplay,
+    locale,
     'J/kgK',
     element.properties.specificHeatGas,
   );
   const latentHeatFusion = parseDisplayValue(
     element.properties.latentHeatFusionDisplay,
+    locale,
     'J/kg',
     element.properties.latentHeatFusion,
   );
   const latentHeatVaporization = parseDisplayValue(
     element.properties.latentHeatVaporizationDisplay,
+    locale,
     'J/kg',
     element.properties.latentHeatVaporization,
   );
-  const enthalpyFusionKjMol = parseDisplayValue(element.properties.enthalpyFusionKjMolDisplay, 'kJ/mol');
-  const enthalpyVaporizationKjMol = parseDisplayValue(element.properties.enthalpyVaporizationKjMolDisplay, 'kJ/mol');
-  const bulkModulus = parseDisplayValue(element.properties.bulkModulusDisplay, 'GPa');
+  const enthalpyFusionKjMol = parseDisplayValue(element.properties.enthalpyFusionKjMolDisplay, locale, 'kJ/mol');
+  const enthalpyVaporizationKjMol = parseDisplayValue(element.properties.enthalpyVaporizationKjMolDisplay, locale, 'kJ/mol');
+  const bulkModulus = parseDisplayValue(element.properties.bulkModulusDisplay, locale, 'GPa');
 
   const atomicChemicalProperties: PropertyItem[] = [
-    { label: 'Atomic mass', value: atomicMass.value, unit: atomicMass.na ? undefined : 'u', sourceId: periodicSourceRef },
-    { label: 'Density', value: density.value, sourceId: periodicSourceRef, estimated: density.estimated },
-    { label: 'Raio atômico', value: atomicRadius.value, unit: atomicRadius.na ? undefined : 'pm', sourceId: element.properties.atomicRadiusSource, estimated: atomicRadius.estimated },
-    { label: 'Afinidade eletrônica', value: electronAffinity.value, unit: electronAffinity.na ? undefined : 'kJ/mol', sourceId: periodicSourceRef, estimated: electronAffinity.estimated },
-    { label: '1ª Energia de ionização', value: ionizationEnergy.value, unit: ionizationEnergy.na ? undefined : 'kJ/mol', sourceId: periodicSourceRef, estimated: ionizationEnergy.estimated },
-    { label: 'Estados de oxidação', value: oxidationStates.value, sourceId: periodicSourceRef, estimated: oxidationStates.estimated },
-    { label: 'Electron configuration', value: electronConfiguration.value, sourceId: periodicSourceRef, renderedValue: electronConfiguration.na ? undefined : formatElectronConfiguration(electronConfigurationRaw) },
+    { label: messages.propertiesMenu.propertyLabels.atomicMass, value: atomicMass.value, unit: atomicMass.na ? undefined : 'u', sourceId: periodicSourceRef },
+    { label: messages.propertiesMenu.propertyLabels.density, value: density.value, sourceId: periodicSourceRef, estimated: density.estimated },
+    { label: messages.propertiesMenu.propertyLabels.atomicRadius, value: atomicRadius.value, unit: atomicRadius.na ? undefined : 'pm', sourceId: element.properties.atomicRadiusSource, estimated: atomicRadius.estimated },
+    { label: messages.propertiesMenu.propertyLabels.electronAffinity, value: electronAffinity.value, unit: electronAffinity.na ? undefined : 'kJ/mol', sourceId: periodicSourceRef, estimated: electronAffinity.estimated },
+    { label: messages.propertiesMenu.propertyLabels.firstIonizationEnergy, value: ionizationEnergy.value, unit: ionizationEnergy.na ? undefined : 'kJ/mol', sourceId: periodicSourceRef, estimated: ionizationEnergy.estimated },
+    { label: messages.propertiesMenu.propertyLabels.oxidationStates, value: oxidationStates.value, sourceId: periodicSourceRef, estimated: oxidationStates.estimated },
+    { label: messages.propertiesMenu.propertyLabels.electronConfiguration, value: electronConfiguration.value, sourceId: periodicSourceRef, renderedValue: electronConfiguration.na ? undefined : formatElectronConfiguration(electronConfigurationRaw) },
   ];
 
   const physicsProperties: PropertyItem[] = [
-    { label: 'Melting point', value: meltingPoint.value, unit: meltingPoint.na ? undefined : 'K', sourceId: element.properties.meltingPointSource, estimated: meltingPoint.estimated },
-    { label: 'Boiling point', value: boilingPoint.value, unit: boilingPoint.na ? undefined : 'K', sourceId: element.properties.boilingPointSource, estimated: boilingPoint.estimated },
-    { label: 'Triple point (temp)', value: triplePointTemp.value, unit: triplePointTemp.na ? undefined : 'K', sourceId: element.properties.triplePointSource, estimated: triplePointTemp.estimated },
-    { label: 'Triple point (press)', value: triplePointPress.value, unit: triplePointPress.na ? undefined : 'kPa', sourceId: element.properties.triplePointSource, estimated: triplePointPress.estimated },
-    { label: 'Critical point (temp)', value: criticalPointTemp.value, unit: criticalPointTemp.na ? undefined : 'K', sourceId: element.properties.criticalPointSource, estimated: criticalPointTemp.estimated },
-    { label: 'Critical point (press)', value: criticalPointPress.value, unit: criticalPointPress.na ? undefined : 'kPa', sourceId: element.properties.criticalPointSource, estimated: criticalPointPress.estimated },
-    { label: 'Thermal conductivity', value: thermalConductivity.value, unit: thermalConductivity.na ? undefined : 'W/mK', sourceId: element.properties.thermalConductivitySource, estimated: thermalConductivity.estimated },
-    { label: 'Specific heat (solid)', value: specificHeatSolid.value, unit: specificHeatSolid.na ? undefined : 'J/kgK', sourceId: element.properties.specificHeatSolidSource, estimated: specificHeatSolid.estimated },
-    { label: 'Specific heat (liquid)', value: specificHeatLiquid.value, unit: specificHeatLiquid.na ? undefined : 'J/kgK', sourceId: element.properties.specificHeatLiquidSource, estimated: specificHeatLiquid.estimated },
-    { label: 'Specific heat (gas)', value: specificHeatGas.value, unit: specificHeatGas.na ? undefined : 'J/kgK', sourceId: element.properties.specificHeatGasSource, estimated: specificHeatGas.estimated },
-    { label: 'Latent heat (fusion)', value: latentHeatFusion.value, unit: latentHeatFusion.na ? undefined : 'J/kg', sourceId: element.properties.latentHeatFusionSource, estimated: latentHeatFusion.estimated },
-    { label: 'Latent heat (vaporization)', value: latentHeatVaporization.value, unit: latentHeatVaporization.na ? undefined : 'J/kg', sourceId: element.properties.latentHeatVaporizationSource, estimated: latentHeatVaporization.estimated },
-    { label: 'Enthalpy of fusion', value: enthalpyFusionKjMol.value, unit: enthalpyFusionKjMol.na ? undefined : 'kJ/mol', sourceId: element.properties.enthalpyFusionSource, estimated: enthalpyFusionKjMol.estimated },
-    { label: 'Enthalpy of vaporization', value: enthalpyVaporizationKjMol.value, unit: enthalpyVaporizationKjMol.na ? undefined : 'kJ/mol', sourceId: element.properties.enthalpyVaporizationSource, estimated: enthalpyVaporizationKjMol.estimated },
-    { label: 'Bulk modulus', value: bulkModulus.value, unit: bulkModulus.na ? undefined : 'GPa', sourceId: element.properties.bulkModulusSource, estimated: bulkModulus.estimated },
+    { label: messages.propertiesMenu.propertyLabels.meltingPoint, value: meltingPoint.value, unit: meltingPoint.na ? undefined : 'K', sourceId: element.properties.meltingPointSource, estimated: meltingPoint.estimated },
+    { label: messages.propertiesMenu.propertyLabels.boilingPoint, value: boilingPoint.value, unit: boilingPoint.na ? undefined : 'K', sourceId: element.properties.boilingPointSource, estimated: boilingPoint.estimated },
+    { label: messages.propertiesMenu.propertyLabels.triplePointTemperature, value: triplePointTemp.value, unit: triplePointTemp.na ? undefined : 'K', sourceId: element.properties.triplePointSource, estimated: triplePointTemp.estimated },
+    { label: messages.propertiesMenu.propertyLabels.triplePointPressure, value: triplePointPress.value, unit: triplePointPress.na ? undefined : 'kPa', sourceId: element.properties.triplePointSource, estimated: triplePointPress.estimated },
+    { label: messages.propertiesMenu.propertyLabels.criticalPointTemperature, value: criticalPointTemp.value, unit: criticalPointTemp.na ? undefined : 'K', sourceId: element.properties.criticalPointSource, estimated: criticalPointTemp.estimated },
+    { label: messages.propertiesMenu.propertyLabels.criticalPointPressure, value: criticalPointPress.value, unit: criticalPointPress.na ? undefined : 'kPa', sourceId: element.properties.criticalPointSource, estimated: criticalPointPress.estimated },
+    { label: messages.propertiesMenu.propertyLabels.thermalConductivity, value: thermalConductivity.value, unit: thermalConductivity.na ? undefined : 'W/mK', sourceId: element.properties.thermalConductivitySource, estimated: thermalConductivity.estimated },
+    { label: messages.propertiesMenu.propertyLabels.specificHeatSolid, value: specificHeatSolid.value, unit: specificHeatSolid.na ? undefined : 'J/kgK', sourceId: element.properties.specificHeatSolidSource, estimated: specificHeatSolid.estimated },
+    { label: messages.propertiesMenu.propertyLabels.specificHeatLiquid, value: specificHeatLiquid.value, unit: specificHeatLiquid.na ? undefined : 'J/kgK', sourceId: element.properties.specificHeatLiquidSource, estimated: specificHeatLiquid.estimated },
+    { label: messages.propertiesMenu.propertyLabels.specificHeatGas, value: specificHeatGas.value, unit: specificHeatGas.na ? undefined : 'J/kgK', sourceId: element.properties.specificHeatGasSource, estimated: specificHeatGas.estimated },
+    { label: messages.propertiesMenu.propertyLabels.latentHeatFusion, value: latentHeatFusion.value, unit: latentHeatFusion.na ? undefined : 'J/kg', sourceId: element.properties.latentHeatFusionSource, estimated: latentHeatFusion.estimated },
+    { label: messages.propertiesMenu.propertyLabels.latentHeatVaporization, value: latentHeatVaporization.value, unit: latentHeatVaporization.na ? undefined : 'J/kg', sourceId: element.properties.latentHeatVaporizationSource, estimated: latentHeatVaporization.estimated },
+    { label: messages.propertiesMenu.propertyLabels.enthalpyFusion, value: enthalpyFusionKjMol.value, unit: enthalpyFusionKjMol.na ? undefined : 'kJ/mol', sourceId: element.properties.enthalpyFusionSource, estimated: enthalpyFusionKjMol.estimated },
+    { label: messages.propertiesMenu.propertyLabels.enthalpyVaporization, value: enthalpyVaporizationKjMol.value, unit: enthalpyVaporizationKjMol.na ? undefined : 'kJ/mol', sourceId: element.properties.enthalpyVaporizationSource, estimated: enthalpyVaporizationKjMol.estimated },
+    { label: messages.propertiesMenu.propertyLabels.bulkModulus, value: bulkModulus.value, unit: bulkModulus.na ? undefined : 'GPa', sourceId: element.properties.bulkModulusSource, estimated: bulkModulus.estimated },
   ];
 
   const references = useMemo<ReferenceItem[]>(
@@ -552,7 +586,7 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
                 </div>
                 <h3 className="heading-xs text-default">{element.name}</h3>
               </div>
-              <Button color="secondary" variant="ghost" pill uniform onClick={onClose} aria-label="Close details">
+              <Button color="secondary" variant="ghost" pill uniform onClick={onClose} aria-label={messages.propertiesMenu.closeDetails}>
                 <CloseBold className="size-4" />
               </Button>
             </div>
@@ -574,7 +608,7 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
                 className="w-fit px-0"
                 onClick={() => setShowFullDescription((prev) => !prev)}
               >
-                {showFullDescription ? 'Ver menos' : 'Ver mais...'}
+                {showFullDescription ? messages.propertiesMenu.seeLess : messages.propertiesMenu.seeMore}
               </Button>
             )}
           </div>
@@ -582,7 +616,7 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
           <div className="grid grid-cols-2 gap-2">
             {(isLiquidState || isGasState || isTripleState || isCriticalState) && (
               <PhaseActionButton
-                label="Solidify"
+                label={messages.propertiesMenu.actions.solidify}
                 color="info"
                 variant="soft"
                 disabled={!hasActionMeltingPoint}
@@ -593,13 +627,13 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
                   }
                   onSetTemperature(solidifyTargetTemp);
                 }}
-                helpText={`A fase solida a partir da liquida ocorre quando a temperatura do sistema esta abaixo da temperatura de fusao (${fmt(actionMeltingPoint, ' K')}) e acima da pressao de ponto triplo (${triplePressureLabel}).`}
+                helpText={messages.propertiesMenu.actions.solidifyHelp(fmt(actionMeltingPoint, ' K'), triplePressureLabel)}
               />
             )}
 
             {(isSolidState || isTripleState) && (
               <PhaseActionButton
-                label="Liquefy"
+                label={messages.propertiesMenu.actions.liquefy}
                 color="warning"
                 variant="soft"
                 disabled={!hasActionMeltingPoint || !hasActionBoilingPoint}
@@ -616,7 +650,7 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
 
             {(isSolidState || isLiquidState || isTripleState || isCriticalState) && (
               <PhaseActionButton
-                label="Boil"
+                label={messages.propertiesMenu.actions.boil}
                 color="danger"
                 variant="soft"
                 disabled={actionBoilingPoint >= 49000 || !hasActionBoilingPoint}
@@ -627,13 +661,13 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
                   }
                   onSetTemperature(actionBoilTarget);
                 }}
-                helpText={`A fase gasosa a partir da liquida ocorre quando a temperatura do sistema esta acima da temperatura de ebulicao (${fmt(actionBoilingPoint, ' K')}) e acima da pressao de ponto triplo (${triplePressureLabel}).`}
+                helpText={messages.propertiesMenu.actions.boilHelp(fmt(actionBoilingPoint, ' K'), triplePressureLabel)}
               />
             )}
 
             {(isGasState || isCriticalState) && (
               <PhaseActionButton
-                label="Condense"
+                label={messages.propertiesMenu.actions.condense}
                 color="warning"
                 variant="soft"
                 disabled={!hasActionBoilingPoint || !hasActionMeltingPoint}
@@ -644,12 +678,12 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
                   }
                   onSetTemperature(condenseActionTarget);
                 }}
-                helpText={liquefyExplanation}
+                helpText={condenseExplanation}
               />
             )}
 
             <PhaseActionButton
-              label="Sublimacao"
+              label={messages.propertiesMenu.actions.sublimation}
               color="secondary"
               variant="soft"
               disabled={!hasTriplePoint || isLiquidState}
@@ -659,11 +693,17 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
                 onSetPressure(sublimationPressure);
                 onSetTemperature(sublimationTargetTemp);
               }}
-              helpText={`A fase ${sublimationPhaseTo} a partir da ${sublimationPhaseFrom} ocorre quando a temperatura do sistema esta ${sublimationTemperatureCondition} da temperatura de sublimacao (${fmt(sublimationTemp, ' K')}) e abaixo da pressao de ponto triplo (${triplePressureLabel}).`}
+              helpText={messages.propertiesMenu.actions.sublimationHelp(
+                sublimationPhaseTo,
+                sublimationPhaseFrom,
+                sublimationTemperatureCondition,
+                fmt(sublimationTemp, ' K'),
+                triplePressureLabel,
+              )}
             />
 
             <PhaseActionButton
-              label="Ponto triplo"
+              label={messages.propertiesMenu.actions.triplePoint}
               color="success"
               variant="soft"
               disabled={!hasTriplePoint}
@@ -673,11 +713,11 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
                 onSetTemperature(triplePoint.tempK);
                 onSetPressure(triplePoint.pressurePa);
               }}
-              helpText={`O equilibrio trifasico ocorre quando a temperatura do sistema e igual a temperatura do ponto triplo (${tripleTempLabel}) e a pressao e igual a pressao do ponto triplo (${triplePressureLabel}).`}
+              helpText={messages.propertiesMenu.actions.triplePointHelp(tripleTempLabel, triplePressureLabel)}
             />
 
             <PhaseActionButton
-              label="Fluido supercritico"
+              label={messages.propertiesMenu.actions.supercriticalFluid}
               color="danger"
               variant="solid"
               colSpanTwo={!(isTripleState || isCriticalState)}
@@ -688,13 +728,13 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
                 onSetTemperature(supercriticalTargetTemp);
                 onSetPressure(criticalPoint.pressurePa + 1000);
               }}
-              helpText={`A fase de fluido supercritico ocorre quando a temperatura do sistema esta acima da temperatura do ponto critico (${criticalTempLabel}) e a pressao esta acima da pressao do ponto critico (${criticalPressureLabel}).`}
+              helpText={messages.propertiesMenu.actions.supercriticalFluidHelp(criticalTempLabel, criticalPressureLabel)}
             />
           </div>
 
           <div className="space-y-3 rounded-2xl border border-subtle bg-surface p-3">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-default">Atomic & Chemical</p>
+              <p className="text-sm font-semibold text-default">{messages.propertiesMenu.sectionTitles.atomicChemical}</p>
             </div>
             <div className="grid grid-cols-2 gap-2">
               {atomicChemicalProperties.map((item) => (
@@ -704,7 +744,7 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
           </div>
 
           <div className="space-y-3 rounded-2xl border border-subtle bg-surface p-3">
-            <p className="text-sm font-semibold text-default">Physics</p>
+            <p className="text-sm font-semibold text-default">{messages.propertiesMenu.sectionTitles.physics}</p>
             <div className="grid grid-cols-2 gap-2">
               {physicsProperties.map((item) => (
                 <PropertyCard key={item.label} item={item} hideSourceId={isReactionProduct} forceEstimated={isReactionProduct} />
@@ -717,7 +757,7 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
               <Popover.Trigger>
                 <Button color="secondary" variant="soft" block>
                   <ExternalLink className="size-4" />
-                  Ver referências
+                  {messages.propertiesMenu.viewReferences}
                 </Button>
               </Popover.Trigger>
               <Popover.Content
@@ -729,7 +769,7 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
                 className="z-[130] rounded-2xl border border-default bg-surface shadow-lg"
               >
                 <div className="max-h-64 space-y-2 overflow-y-auto p-3" onMouseDown={(event) => event.stopPropagation()}>
-                  <p className="text-xs font-medium text-secondary">Referências definidas no app</p>
+                  <p className="text-xs font-medium text-secondary">{messages.propertiesMenu.referencesTitle}</p>
                   <ul className="space-y-2">
                     {references.map((reference) => (
                       <li key={reference.id} className="rounded-xl border border-subtle bg-surface-secondary p-2">
@@ -748,7 +788,7 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
                                 className="w-fit"
                               >
                                 <ExternalLink className="size-4" />
-                                Abrir link
+                                {messages.common.openLink}
                               </ButtonLink>
                             )}
                           </div>

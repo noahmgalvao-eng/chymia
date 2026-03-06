@@ -7,6 +7,8 @@ import { CircularProgress, LoadingIndicator } from '@openai/apps-sdk-ui/componen
 import { ArrowLeft, ArrowRight, Record, X } from '@openai/apps-sdk-ui/components/Icon';
 import { SegmentedControl } from '@openai/apps-sdk-ui/components/SegmentedControl';
 import { ChemicalElement, PhysicsState, Bounds } from '../../types';
+import { useI18n } from '../../i18n';
+import { phaseToReadable } from '../../app/appDefinitions';
 
 interface RecordingData {
   element: ChemicalElement;
@@ -21,11 +23,11 @@ interface Props {
 
 const getVolume = (bounds: Bounds) => (bounds.maxX - bounds.minX) * (bounds.maxY - bounds.minY);
 
-const formatValue = (value: number, unit = '') =>
-  `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}${unit}`;
-
 const RecordingStatsModal: React.FC<Props> = ({ recordings, onClose }) => {
+  const { locale, messages } = useI18n();
   const [currentIndex, setCurrentIndex] = useState(0);
+  const formatValue = (value: number, unit = '') =>
+    `${value.toLocaleString(locale, { maximumFractionDigits: 2 })}${unit}`;
 
   if (recordings.length === 0) {
     return (
@@ -38,11 +40,11 @@ const RecordingStatsModal: React.FC<Props> = ({ recordings, onClose }) => {
             <EmptyMessage.Icon color="warning">
               <Record className="size-6" />
             </EmptyMessage.Icon>
-            <EmptyMessage.Title>No recordings available</EmptyMessage.Title>
-            <EmptyMessage.Description>Start and stop a recording to inspect simulation metrics.</EmptyMessage.Description>
+            <EmptyMessage.Title>{messages.recordingStats.emptyTitle}</EmptyMessage.Title>
+            <EmptyMessage.Description>{messages.recordingStats.emptyDescription}</EmptyMessage.Description>
             <EmptyMessage.ActionRow>
               <Button color="secondary" variant="soft" onClick={onClose}>
-                Close
+                {messages.common.close}
               </Button>
             </EmptyMessage.ActionRow>
           </EmptyMessage>
@@ -78,13 +80,13 @@ const RecordingStatsModal: React.FC<Props> = ({ recordings, onClose }) => {
           <div className="flex items-center gap-3">
             <LoadingIndicator />
             <div>
-              <h2 className="heading-sm text-default">Recording Statistics</h2>
+              <h2 className="heading-sm text-default">{messages.recordingStats.title}</h2>
               <p className="text-xs text-secondary">
-                Duration {formatValue(duration, ' s')} (simulated) - Element {currentIndex + 1} of {recordings.length}
+                {messages.recordingStats.subtitle(formatValue(duration, ' s'), currentIndex + 1, recordings.length)}
               </p>
             </div>
           </div>
-          <Button color="secondary" variant="ghost" pill uniform onClick={onClose} aria-label="Close recording stats">
+          <Button color="secondary" variant="ghost" pill uniform onClick={onClose} aria-label={messages.recordingStats.closeAria}>
             <X className="size-4" />
           </Button>
         </header>
@@ -106,7 +108,7 @@ const RecordingStatsModal: React.FC<Props> = ({ recordings, onClose }) => {
           </div>
 
           <SegmentedControl
-            aria-label="Recorded element selection"
+            aria-label={messages.recordingStats.recordedElementSelection}
             value={String(currentIndex)}
             onChange={(next) => setCurrentIndex(Number(next))}
             size="sm"
@@ -123,59 +125,59 @@ const RecordingStatsModal: React.FC<Props> = ({ recordings, onClose }) => {
             <Alert
               color={isHeating ? 'danger' : 'info'}
               variant="soft"
-              title="System Enthalpy"
+              title={messages.recordingStats.systemEnthalpy}
               description={`${isHeating ? '+' : ''}${formatValue(deltaH, ' J')}`}
             />
             <Alert
               color={volumeChange >= 0 ? 'success' : 'warning'}
               variant="soft"
-              title="Gas Expansion"
+              title={messages.recordingStats.gasExpansion}
               description={`${volumeChange >= 0 ? '+' : ''}${formatValue(volumePercent, '%')}`}
             />
           </div>
 
           <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
             <section className="rounded-2xl border border-default bg-surface p-4">
-              <h3 className="text-sm font-semibold text-default">Thermodynamic variables</h3>
+              <h3 className="text-sm font-semibold text-default">{messages.recordingStats.thermodynamicVariables}</h3>
               <div className="mt-3 space-y-2 text-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-secondary">Temperature</span>
+                  <span className="text-secondary">{messages.recordingStats.temperature}</span>
                   <span className="text-default">
                     {formatValue(start.temperature, ' K')} - {formatValue(end.temperature, ' K')}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-secondary">Pressure</span>
+                  <span className="text-secondary">{messages.recordingStats.pressure}</span>
                   <span className="text-default">
                     {formatValue(start.pressure / 1000, ' kPa')} - {formatValue(end.pressure / 1000, ' kPa')}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-secondary">Phase transition</span>
+                  <span className="text-secondary">{messages.recordingStats.phaseTransition}</span>
                   <span className="text-default">
-                    {start.state} - {end.state}
+                    {phaseToReadable(messages, start.state)} - {phaseToReadable(messages, end.state)}
                   </span>
                 </div>
               </div>
             </section>
 
             <section className="rounded-2xl border border-default bg-surface p-4">
-              <h3 className="text-sm font-semibold text-default">Pressure-dependent boundaries</h3>
+              <h3 className="text-sm font-semibold text-default">{messages.recordingStats.pressureDependentBoundaries}</h3>
               <div className="mt-3 space-y-2 text-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-secondary">T_melt</span>
+                  <span className="text-secondary">{messages.recordingStats.tMelt}</span>
                   <span className="text-default">
                     {formatValue(start.meltingPointCurrent, ' K')} - {formatValue(end.meltingPointCurrent, ' K')}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-secondary">T_boil</span>
+                  <span className="text-secondary">{messages.recordingStats.tBoil}</span>
                   <span className="text-default">
                     {formatValue(start.boilingPointCurrent, ' K')} - {formatValue(end.boilingPointCurrent, ' K')}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-secondary">Gas area</span>
+                  <span className="text-secondary">{messages.recordingStats.gasArea}</span>
                   <span className="text-default">
                     {formatValue(volumeStart, ' px²')} - {formatValue(volumeEnd, ' px²')}
                   </span>

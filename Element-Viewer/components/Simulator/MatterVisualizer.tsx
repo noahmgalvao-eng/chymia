@@ -167,9 +167,7 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
         };
     }, [state, meltProgress, matterRect]);
 
-    const shouldUseEvaporationShapeSync =
-        showParticles &&
-        (state === MatterState.BOILING || state === MatterState.EQUILIBRIUM_BOIL);
+    const shouldUseEvaporationShapeSync = false;
 
     const shouldResolveTrappedOverlaps =
         showParticles &&

@@ -76,6 +76,8 @@ const tuneColorForTheme = (hexColor: string, isDarkTheme: boolean) => {
     return hexColor;
 };
 
+const APPS_UI_FONT_STACK = 'ui-sans-serif, -apple-system, system-ui, "Segoe UI", "Noto Sans", "Helvetica", "Arial", sans-serif';
+
 const PATH_NUMBER_REGEX = /[-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?/g;
 
 const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, viewBounds, totalElements, onInspect }) => {
@@ -521,6 +523,8 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
     const isMetallic = ['metal', 'metalloid'].includes(element.category);
     const viewBoxString = `${viewBounds.minX} ${viewBounds.minY} ${viewBounds.width} ${viewBounds.height}`;
 
+    const hudCenterX = viewBounds.minX + (viewBounds.width / 2);
+    const hudTopY = viewBounds.minY + 30;
     const isReactionProduct = element.category === 'reaction_product';
     const identityLabel = element.symbol;
     const identityVisual = useMemo(() => {
@@ -529,8 +533,9 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
                 shape: 'circle' as const,
                 width: 60,
                 height: 60,
-                fontSize: 22,
-                textY: 2,
+                fontSize: 24,
+                textY: 0,
+                textDy: '0.03em',
                 statusY: 45,
             };
         }
@@ -540,13 +545,17 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
         const horizontalPadding = 24;
         let fontSize = 14;
         let measuredWidth = identityLabel.length * (fontSize * 0.62);
+        const fontStack =
+            typeof document !== 'undefined'
+                ? getComputedStyle(document.documentElement).getPropertyValue('--font-sans').trim() || APPS_UI_FONT_STACK
+                : APPS_UI_FONT_STACK;
 
         if (typeof document !== 'undefined') {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             if (ctx) {
                 while (fontSize > 10) {
-                    ctx.font = `900 ${fontSize}px sans-serif`;
+                    ctx.font = `600 ${fontSize}px ${fontStack}`;
                     measuredWidth = ctx.measureText(identityLabel).width;
                     if (measuredWidth + horizontalPadding <= maxWidth) {
                         break;
@@ -566,10 +575,21 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
             width: capsuleWidth,
             height: 42,
             fontSize,
-            textY: 1,
+            textY: 0,
+            textDy: '0.02em',
             statusY: 38,
         };
     }, [identityLabel, isReactionProduct]);
+
+    const identityTextColor = useMemo(() => {
+        return getRelativeLuminance(adjustedGasColor) > 0.56
+            ? 'var(--color-text)'
+            : 'var(--color-text-inverse)';
+    }, [adjustedGasColor]);
+
+    const identityTextStroke = identityTextColor === 'var(--color-text)'
+        ? 'rgba(255, 255, 255, 0.72)'
+        : 'rgba(15, 23, 42, 0.24)';
 
     const phaseStatusLabel = useMemo(
         () => getPhaseStatusLabel(messages, state, powerInput),
@@ -823,7 +843,7 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
 
                 {/* --- HUD: CENTERED IDENTITY & MOLECULAR STATUS --- */}
                 <g
-                    transform="translate(200, 30)"
+                    transform={`translate(${hudCenterX}, ${hudTopY})`}
                     pointerEvents="all"
                     className="cursor-pointer hover:opacity-80 transition-opacity"
                     onClick={handleInteraction}
@@ -857,16 +877,19 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
 
                     {/* 2. Identity Label */}
                     <text
+                        x="0"
                         y={identityVisual.textY}
+                        dy={identityVisual.textDy}
                         textAnchor="middle"
-                        dominantBaseline="central"
-                        fontFamily="sans-serif"
-                        fontWeight="900"
+                        dominantBaseline="middle"
+                        fontFamily="var(--font-sans)"
+                        fontWeight="var(--font-heading-lg-weight)"
+                        letterSpacing="var(--font-heading-lg-tracking)"
                         fontSize={identityVisual.fontSize}
-                        fill="white"
-                        stroke="black"
-                        strokeWidth="1.2px"
-                        style={{ paintOrder: 'stroke', userSelect: 'none' }}
+                        fill={identityTextColor}
+                        stroke={identityTextStroke}
+                        strokeWidth="0.9px"
+                        style={{ paintOrder: 'stroke fill', userSelect: 'none' }}
                     >
                         {identityLabel}
                     </text>

@@ -223,8 +223,9 @@ const getReadableTextColor = (hexColor: string): string => {
   return luminance > 0.63 ? '#111111' : '#ffffff';
 };
 
-const getReactionRingColor = (hexColor: string): string => {
-  return `color-mix(in oklab, ${hexColor} 54%, #111111)`;
+const getReactionRingColor = (hexColor: string, textColor: string): string => {
+  const contrastAnchor = textColor === '#111111' ? '#0f172a' : '#ffffff';
+  return `color-mix(in oklab, ${hexColor} 78%, ${contrastAnchor} 22%)`;
 };
 
 const PeriodicTableSelector: React.FC<Props> = ({
@@ -671,7 +672,7 @@ const PeriodicTableSelector: React.FC<Props> = ({
                         backgroundColor: reactionColor,
                         color: textColor,
                         borderColor: 'color-mix(in oklab, #111111 24%, transparent)',
-                        '--button-ring-color': getReactionRingColor(reactionColor),
+                        '--button-ring-color': getReactionRingColor(reactionColor, textColor),
                       };
 
                       return (
@@ -685,7 +686,7 @@ const PeriodicTableSelector: React.FC<Props> = ({
                           style={reactionStyle}
                           title={reaction.name}
                         >
-                          {isSelected && <span className="periodic-cell-selection-ring" aria-hidden />}
+                          {isSelected && <span className="periodic-cell-selection-ring periodic-reaction-selection-ring" aria-hidden />}
                           {reaction.symbol}
                         </Button>
                       );

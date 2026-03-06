@@ -112,14 +112,15 @@
 .periodic-cell-selection-ring {
   pointer-events: none;
   position: absolute;
-  inset: -1px;
+  inset: var(--selection-ring-inset, -1px);
   z-index: 2;
-  border-radius: inherit;
-  border: 3px solid var(--button-ring-color, #111111);
+  border-radius: var(--selection-ring-radius, var(--button-radius, inherit));
+  border: var(--selection-ring-border-width, 3px) solid var(--button-ring-color, #111111);
   box-shadow:
-    0 0 0 2px #ffffff,
-    0 0 0 5px color-mix(in oklab, var(--button-ring-color, #111111) 42%, transparent),
-    0 8px 14px color-mix(in oklab, var(--button-ring-color, #111111) 30%, transparent);
+    0 0 0 var(--selection-ring-inner-width, 2px) var(--selection-ring-inner-color, #ffffff),
+    0 0 0 calc(var(--selection-ring-inner-width, 2px) + var(--selection-ring-outer-width, 3px))
+      color-mix(in oklab, var(--button-ring-color, #111111) var(--selection-ring-outer-mix, 42%), transparent),
+    0 8px 14px color-mix(in oklab, var(--button-ring-color, #111111) var(--selection-ring-shadow-mix, 30%), transparent);
 }
 
 .periodic-legend-popover {
@@ -175,6 +176,18 @@
   min-width: fit-content !important;
   padding-left: 0.42rem !important;
   padding-right: 0.42rem !important;
+  overflow: visible !important;
+}
+
+.periodic-reaction-selection-ring {
+  --selection-ring-inset: 0px;
+  --selection-ring-radius: var(--button-radius, var(--radius-full));
+  --selection-ring-border-width: 2px;
+  --selection-ring-inner-width: 1px;
+  --selection-ring-inner-color: color-mix(in oklab, #ffffff 82%, transparent);
+  --selection-ring-outer-width: 2px;
+  --selection-ring-outer-mix: 16%;
+  --selection-ring-shadow-mix: 12%;
 }
 
 @media (min-width: 640px) {

@@ -191,6 +191,30 @@ export const updateParticleSystem = ({
         particle.liquidTargetX = undefined;
         particle.liquidTargetY = undefined;
     };
+    const getGasLaunchY = (preferredY?: number) => {
+        const surfaceY = evaporationLayout?.topExitY ?? matterRect.y;
+        const candidateY = Math.min(preferredY ?? surfaceY, surfaceY) - (PARTICLE_RADIUS * 0.35);
+        return Math.max(
+            gasBounds.minY + PARTICLE_RADIUS,
+            Math.min(gasBounds.maxY - PARTICLE_RADIUS, candidateY),
+        );
+    };
+    const launchParticleIntoGas = (
+        particle: Particle,
+        edgeBias = 0,
+        preferredX?: number,
+        preferredY?: number,
+    ) => {
+        clearParticleLiquidTarget(particle);
+        particle.state = ParticleState.GAS;
+        particle.x = Math.max(
+            gasBounds.minX + particle.r,
+            Math.min(gasBounds.maxX - particle.r, preferredX ?? particle.x),
+        );
+        particle.y = getGasLaunchY(preferredY);
+        particle.vx = edgeBias + ((Math.random() * 2 - 1) * RISING_LATERAL_JITTER);
+        particle.vy = -RISING_VERTICAL_BASE - (Math.random() * RISING_VERTICAL_JITTER);
+    };
     const setParticleLiquidTargetToSlot = (particle: Particle, slotId: number) => {
         if (!evaporationLayout) return;
         const slot = evaporationLayout.slots[slotId];
@@ -511,22 +535,10 @@ export const updateParticleSystem = ({
                     ? (slot.x - matterCenterX) / Math.max(1, matterRect.w * 0.5)
                     : 0;
                 const edgeBias = normalizedSide * RISING_LATERAL_JITTER;
-                const wasTrapped = candidate.state === ParticleState.TRAPPED;
 
                 retainedSlotIds = retainedSlotIds.slice(0, -1);
                 liquidSlotMap.delete(candidate.id);
-                clearParticleLiquidTarget(candidate);
-
-                if (slot) {
-                    if (wasTrapped) {
-                        candidate.x = slot.x;
-                        candidate.y = slot.y;
-                    }
-                }
-
-                candidate.state = ParticleState.RISING;
-                candidate.vx = edgeBias + ((Math.random() * 2 - 1) * RISING_LATERAL_JITTER);
-                candidate.vy = -RISING_VERTICAL_BASE - (Math.random() * RISING_VERTICAL_JITTER);
+                launchParticleIntoGas(candidate, edgeBias, slot?.x ?? candidate.x, slot?.y ?? candidate.y);
             }
         } else if (currentGasCount > targetGasCount && retainedSlotIds.length < targetRetainedCount) {
             const slotId = retainedSlotIds.length;
@@ -550,9 +562,7 @@ export const updateParticleSystem = ({
         if (activeGasParticles.length < targetGasCount) {
             const trapped = simState.particles.find((particle) => particle.state === ParticleState.TRAPPED);
             if (trapped) {
-                trapped.state = ParticleState.RISING;
-                trapped.vx = (Math.random() * 2 - 1) * RISING_LATERAL_JITTER;
-                trapped.vy = -RISING_VERTICAL_BASE - (Math.random() * RISING_VERTICAL_JITTER);
+                launchParticleIntoGas(trapped, 0, trapped.homeX, trapped.homeY);
             }
         } else if (activeGasParticles.length > targetGasCount && !isSCFMode) {
             const gasCandidate = simState.particles.find((particle) => particle.state === ParticleState.GAS);
@@ -694,16 +704,8 @@ export const updateParticleSystem = ({
                      return;
                  }
                  if (p.state === ParticleState.GAS) {
-                     const dx = p.x - targetX; const dy = p.y - scfTargetY;
-                     const distSq = dx*dx + dy*dy;
-                     if (distSq < 100) { 
-                          p.x = targetX + (Math.random() - 0.5) * 2;
-                          p.y = scfTargetY + (Math.random() - 0.5) * 2;
-                     } else {
-                          currentFrameSettled = false;
-                          p.x = interpolateValue(p.x, targetX, 0.1);
-                          p.y = interpolateValue(p.y, scfTargetY, 0.1);
-                     }
+                     p.x = newtonX;
+                     p.y = newtonY;
                      return;
                  }
             }

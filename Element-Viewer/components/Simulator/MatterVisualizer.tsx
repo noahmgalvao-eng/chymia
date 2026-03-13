@@ -121,6 +121,12 @@ const getTrappedParticleAnchor = (
     return { x: particle.homeX, y: particle.homeY };
 };
 
+const shouldResolveParticleVisually = (particle: Particle, showParticles: boolean) => (
+    (particle.state === ParticleState.TRAPPED && showParticles)
+    || particle.state === ParticleState.RISING
+    || particle.state === ParticleState.CONDENSING
+);
+
 const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, viewBounds, totalElements, onInspect }) => {
     const { messages } = useI18n();
     const { pathProgress, state, particles, boilProgress, meltProgress, matterRect, gasBounds, scfOpacity, simTime, sublimationProgress, powerInput } = physics;
@@ -213,8 +219,7 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
         };
     }, [state, meltProgress, matterRect]);
 
-    const shouldResolveTrappedOverlaps =
-        showParticles &&
+    const shouldResolveParticleOverlaps =
         [
             MatterState.SOLID,
             MatterState.MELTING,
@@ -227,12 +232,12 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
             MatterState.GAS,
         ].includes(state);
 
-    const trappedParticleRenderMap = useMemo(() => {
+    const particleRenderMap = useMemo(() => {
         const resolved = new Map<number, { x: number; y: number }>();
-        if (!shouldResolveTrappedOverlaps) return resolved;
+        if (!shouldResolveParticleOverlaps) return resolved;
 
-        const trappedParticles = particles.filter((particle) => particle.state === ParticleState.TRAPPED);
-        if (trappedParticles.length === 0) return resolved;
+        const visibleParticles = particles.filter((particle) => shouldResolveParticleVisually(particle, showParticles));
+        if (visibleParticles.length === 0) return resolved;
 
         const vibrationAmp = Math.sqrt(Math.max(0, physics.temperature)) * 0.15;
         const time = physics.simTime * 25;
@@ -243,12 +248,17 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
             y: number;
             targetX: number;
             targetY: number;
-        }> = trappedParticles.map((particle) => {
-            const anchor = getTrappedParticleAnchor(particle, state, meltProgress);
-            const jitterX = Math.sin(time + particle.id * 123) * vibrationAmp;
-            const jitterY = Math.cos(time + particle.id * 321) * vibrationAmp;
-            const targetX = anchor.x + jitterX;
-            const targetY = anchor.y + jitterY;
+        }> = visibleParticles.map((particle) => {
+            let targetX = particle.x;
+            let targetY = particle.y;
+
+            if (particle.state === ParticleState.TRAPPED) {
+                const anchor = getTrappedParticleAnchor(particle, state, meltProgress);
+                const jitterX = Math.sin(time + particle.id * 123) * vibrationAmp;
+                const jitterY = Math.cos(time + particle.id * 321) * vibrationAmp;
+                targetX = anchor.x + jitterX;
+                targetY = anchor.y + jitterY;
+            }
 
             return {
                 id: particle.id,
@@ -336,8 +346,9 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
         particles,
         physics.simTime,
         physics.temperature,
+        showParticles,
         state,
-        shouldResolveTrappedOverlaps,
+        shouldResolveParticleOverlaps,
     ]);
 
     // --- VISIBILITY LOGIC ---
@@ -696,10 +707,10 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
                             fill = state === MatterState.SOLID || state === MatterState.SUBLIMATION || state === MatterState.EQUILIBRIUM_SUB ? adjustedSolidColor : adjustedLiquidColor;
                             opacity = 0.9;
 
-                            const resolvedTrappedPosition = trappedParticleRenderMap.get(p.id);
-                            if (resolvedTrappedPosition) {
-                                renderX = resolvedTrappedPosition.x;
-                                renderY = resolvedTrappedPosition.y;
+                            const resolvedParticlePosition = particleRenderMap.get(p.id);
+                            if (resolvedParticlePosition) {
+                                renderX = resolvedParticlePosition.x;
+                                renderY = resolvedParticlePosition.y;
                             } else {
                                 const anchor = getTrappedParticleAnchor(p, state, meltProgress);
                                 const vibrationAmp = Math.sqrt(physics.temperature) * 0.15;
@@ -708,6 +719,12 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
                                 const jitterY = Math.cos(time + p.id * 321) * vibrationAmp;
                                 renderX = anchor.x + jitterX;
                                 renderY = anchor.y + jitterY;
+                            }
+                        } else {
+                            const resolvedParticlePosition = particleRenderMap.get(p.id);
+                            if (resolvedParticlePosition) {
+                                renderX = resolvedParticlePosition.x;
+                                renderY = resolvedParticlePosition.y;
                             }
                         }
 

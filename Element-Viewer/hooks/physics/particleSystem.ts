@@ -33,6 +33,21 @@ const isLiquidSyncTransition = (
     || (lastState === MatterState.SUPERCRITICAL && detectedPhase !== MatterState.GAS)
 );
 
+const isLiquidLayoutPreparationPhase = (phase: MatterState) => (
+    phase === MatterState.MELTING || phase === MatterState.EQUILIBRIUM_MELT
+);
+
+const shouldUseLiquidSlotHomes = (
+    phase: MatterState,
+    lastState: MatterState,
+    detectedPhase: MatterState,
+) => (
+    phase === MatterState.LIQUID
+    || phase === MatterState.BOILING
+    || phase === MatterState.EQUILIBRIUM_BOIL
+    || isLiquidSyncTransition(phase, lastState, detectedPhase)
+);
+
 const getTargetPathProgress = (
     phase: MatterState,
     detectedPhase: MatterState,
@@ -153,21 +168,45 @@ export const updateParticleSystem = ({
         effectiveBoilProgress,
         scfTransitionProgress,
     );
+    const isPreparingLiquidLayout = isLiquidLayoutPreparationPhase(phase);
     const usesEvaporationLayout = (
-        phase === MatterState.LIQUID
+        isPreparingLiquidLayout
+        || phase === MatterState.LIQUID
         || phase === MatterState.BOILING
         || phase === MatterState.EQUILIBRIUM_BOIL
         || isLiquidSyncTransition(phase, lastState, detectedPhase)
     );
+    const liquidSlotHomesEnabled = shouldUseLiquidSlotHomes(phase, lastState, detectedPhase);
+    const evaporationLayoutPathProgress = isPreparingLiquidLayout ? 5 : targetPathProgress;
     const evaporationLayout = usesEvaporationLayout
         ? buildEvaporationLayout({
-            pathProgress: targetPathProgress,
+            pathProgress: evaporationLayoutPathProgress,
             matterRect,
             meltProgress,
             state: phase,
             effectiveRadius: PARTICLE_RADIUS,
         })
         : null;
+    const clearParticleLiquidTarget = (particle: Particle) => {
+        particle.liquidTargetX = undefined;
+        particle.liquidTargetY = undefined;
+    };
+    const setParticleLiquidTargetToSlot = (particle: Particle, slotId: number) => {
+        if (!evaporationLayout) return;
+        const slot = evaporationLayout.slots[slotId];
+        if (!slot) {
+            clearParticleLiquidTarget(particle);
+            return;
+        }
+
+        particle.liquidTargetX = slot.x;
+        particle.liquidTargetY = slot.y;
+
+        if (liquidSlotHomesEnabled || particle.state === ParticleState.CONDENSING) {
+            particle.homeX = slot.x;
+            particle.homeY = slot.y;
+        }
+    };
     const liquidSlotMap = simState.slotByParticleId;
     let retainedSlotIds = evaporationLayout
         ? simState.previousRetainedSlotIds
@@ -181,13 +220,6 @@ export const updateParticleSystem = ({
     const getGasParticles = () => simState.particles.filter(
         (particle) => particle.state === ParticleState.GAS || particle.state === ParticleState.RISING,
     );
-    const setParticleHomeToSlot = (particle: Particle, slotId: number) => {
-        if (!evaporationLayout) return;
-        const slot = evaporationLayout.slots[slotId];
-        if (!slot) return;
-        particle.homeX = slot.x;
-        particle.homeY = slot.y;
-    };
     const reconcileLiquidAssignments = () => {
         if (!evaporationLayout) {
             liquidSlotMap.clear();
@@ -202,6 +234,9 @@ export const updateParticleSystem = ({
             const particle = simState.particles.find((candidate) => candidate.id === particleId);
             const isLiquidParticle = particle?.state === ParticleState.TRAPPED || particle?.state === ParticleState.CONDENSING;
             if (!isLiquidParticle || !retainedSet.has(slotId)) {
+                if (particle) {
+                    clearParticleLiquidTarget(particle);
+                }
                 liquidSlotMap.delete(particleId);
             }
         }
@@ -210,11 +245,12 @@ export const updateParticleSystem = ({
         for (const particle of liquidParticles) {
             const assignedSlot = liquidSlotMap.get(particle.id);
             if (assignedSlot === undefined || !retainedSet.has(assignedSlot) || occupiedSlots.has(assignedSlot)) {
+                clearParticleLiquidTarget(particle);
                 liquidSlotMap.delete(particle.id);
                 continue;
             }
             occupiedSlots.add(assignedSlot);
-            setParticleHomeToSlot(particle, assignedSlot);
+            setParticleLiquidTargetToSlot(particle, assignedSlot);
         }
 
         const availableSlots = retainedSlotIds.filter((slotId) => !occupiedSlots.has(slotId));
@@ -244,7 +280,13 @@ export const updateParticleSystem = ({
 
             const [slotId] = availableSlots.splice(nearestIndex, 1);
             liquidSlotMap.set(particle.id, slotId);
-            setParticleHomeToSlot(particle, slotId);
+            setParticleLiquidTargetToSlot(particle, slotId);
+        }
+
+        for (const particle of liquidParticles) {
+            if (!liquidSlotMap.has(particle.id)) {
+                clearParticleLiquidTarget(particle);
+            }
         }
     };
     const syncRetainedSlotsToLiquidCount = () => {
@@ -307,6 +349,7 @@ export const updateParticleSystem = ({
     } else {
         liquidSlotMap.clear();
         retainedSlotIds = [];
+        simState.particles.forEach(clearParticleLiquidTarget);
     }
 
     // --- SUBLIMATION LOGIC (Direct Solid -> Gas) ---
@@ -472,10 +515,9 @@ export const updateParticleSystem = ({
 
                 retainedSlotIds = retainedSlotIds.slice(0, -1);
                 liquidSlotMap.delete(candidate.id);
+                clearParticleLiquidTarget(candidate);
 
                 if (slot) {
-                    candidate.homeX = slot.x;
-                    candidate.homeY = slot.y;
                     if (wasTrapped) {
                         candidate.x = slot.x;
                         candidate.y = slot.y;
@@ -493,7 +535,7 @@ export const updateParticleSystem = ({
             if (candidate) {
                 retainedSlotIds = [...retainedSlotIds, slotId];
                 liquidSlotMap.set(candidate.id, slotId);
-                setParticleHomeToSlot(candidate, slotId);
+                setParticleLiquidTargetToSlot(candidate, slotId);
                 candidate.state = ParticleState.CONDENSING;
                 candidate.vx *= 0.2;
                 candidate.vy = Math.max(80, Math.abs(candidate.vy) * 0.35);
@@ -565,7 +607,7 @@ export const updateParticleSystem = ({
              // Since INIT_RECT height is fixed, and matterRect shrinks "from top", 
              // removing top rows (Low IDs) correctly exposes lower rows which stay in place.
              p.homeY = INIT_RECT.y + (row * cellH) + (cellH / 2);
-        } else if (assignedLiquidSlotId !== undefined && evaporationLayout) {
+        } else if (assignedLiquidSlotId !== undefined && evaporationLayout && liquidSlotHomesEnabled) {
             const slot = evaporationLayout.slots[assignedLiquidSlotId];
             if (slot) {
                 p.homeX = slot.x;

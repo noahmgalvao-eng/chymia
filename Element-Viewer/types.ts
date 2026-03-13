@@ -157,6 +157,8 @@ export interface Particle {
   r: number; // Radius
   homeX: number; // The fixed lattice X position
   homeY: number; // The fixed lattice Y position
+  liquidTargetX?: number; // Optional liquid slot target used to smooth solid -> liquid X-Ray transitions
+  liquidTargetY?: number;
 }
 
 export interface MatterRect {

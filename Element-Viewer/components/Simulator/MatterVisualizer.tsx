@@ -1,6 +1,6 @@
 
 import React, { useMemo } from 'react';
-import { PhysicsState, ChemicalElement, MatterState, ParticleState, ViewBoxDimensions } from '../../types';
+import { PhysicsState, ChemicalElement, MatterState, Particle, ParticleState, ViewBoxDimensions } from '../../types';
 import { MATTER_PATH_FRAMES } from '../../data/elements';
 import { interpolatePath, interpolateColor, interpolateValue } from '../../utils/interpolator';
 import { getPhaseStatusLabel } from '../../app/appDefinitions';
@@ -77,6 +77,49 @@ const tuneColorForTheme = (hexColor: string, isDarkTheme: boolean) => {
 };
 
 const APPS_UI_FONT_STACK = 'ui-sans-serif, -apple-system, system-ui, "Segoe UI", "Noto Sans", "Helvetica", "Arial", sans-serif';
+
+const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
+
+const smoothstep = (value: number) => {
+    const t = clamp01(value);
+    return t * t * (3 - (2 * t));
+};
+
+const getTrappedParticleAnchor = (
+    particle: Particle,
+    state: MatterState,
+    meltProgress: number,
+) => {
+    const hasLiquidTarget =
+        Number.isFinite(particle.liquidTargetX) && Number.isFinite(particle.liquidTargetY);
+
+    if (!hasLiquidTarget) {
+        return { x: particle.homeX, y: particle.homeY };
+    }
+
+    if (state === MatterState.MELTING || state === MatterState.EQUILIBRIUM_MELT) {
+        const easedProgress = smoothstep(meltProgress);
+        return {
+            x: interpolateValue(particle.homeX, particle.liquidTargetX ?? particle.homeX, easedProgress),
+            y: interpolateValue(particle.homeY, particle.liquidTargetY ?? particle.homeY, easedProgress),
+        };
+    }
+
+    if (
+        state === MatterState.LIQUID
+        || state === MatterState.BOILING
+        || state === MatterState.EQUILIBRIUM_BOIL
+        || state === MatterState.TRANSITION_SCF
+        || state === MatterState.GAS
+    ) {
+        return {
+            x: particle.liquidTargetX ?? particle.homeX,
+            y: particle.liquidTargetY ?? particle.homeY,
+        };
+    }
+
+    return { x: particle.homeX, y: particle.homeY };
+};
 
 const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, viewBounds, totalElements, onInspect }) => {
     const { messages } = useI18n();
@@ -201,10 +244,11 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
             targetX: number;
             targetY: number;
         }> = trappedParticles.map((particle) => {
+            const anchor = getTrappedParticleAnchor(particle, state, meltProgress);
             const jitterX = Math.sin(time + particle.id * 123) * vibrationAmp;
             const jitterY = Math.cos(time + particle.id * 321) * vibrationAmp;
-            const targetX = particle.homeX + jitterX;
-            const targetY = particle.homeY + jitterY;
+            const targetX = anchor.x + jitterX;
+            const targetY = anchor.y + jitterY;
 
             return {
                 id: particle.id,
@@ -288,9 +332,11 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
 
         return resolved;
     }, [
+        meltProgress,
         particles,
         physics.simTime,
         physics.temperature,
+        state,
         shouldResolveTrappedOverlaps,
     ]);
 
@@ -655,12 +701,13 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
                                 renderX = resolvedTrappedPosition.x;
                                 renderY = resolvedTrappedPosition.y;
                             } else {
+                                const anchor = getTrappedParticleAnchor(p, state, meltProgress);
                                 const vibrationAmp = Math.sqrt(physics.temperature) * 0.15;
                                 const time = physics.simTime * 25;
                                 const jitterX = Math.sin(time + p.id * 123) * vibrationAmp;
                                 const jitterY = Math.cos(time + p.id * 321) * vibrationAmp;
-                                renderX = p.homeX + jitterX;
-                                renderY = p.homeY + jitterY;
+                                renderX = anchor.x + jitterX;
+                                renderY = anchor.y + jitterY;
                             }
                         }
 

@@ -72,6 +72,10 @@ export const usePhysics = ({ element, temperature: targetEnvTemp, pressure, qual
     simState.current.previousBoilLikeProgress = 0;
     simState.current.slotByParticleId = new Map();
     simState.current.previousRetainedSlotIds = [];
+    simState.current.particles.forEach((particle) => {
+        particle.liquidTargetX = undefined;
+        particle.liquidTargetY = undefined;
+    });
 
     if (targetEnvTemp < meltingPointK) {
         simState.current.enthalpy = SAMPLE_MASS * specificHeatSolid * targetEnvTemp;

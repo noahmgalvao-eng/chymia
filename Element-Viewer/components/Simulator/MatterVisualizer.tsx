@@ -1,5 +1,5 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { PhysicsState, ChemicalElement, MatterState, Particle, ParticleState, ViewBoxDimensions } from '../../types';
 import { MATTER_PATH_FRAMES } from '../../data/elements';
 import { interpolatePath, interpolateColor, interpolateValue } from '../../utils/interpolator';
@@ -127,9 +127,22 @@ const shouldResolveParticleVisually = (particle: Particle, showParticles: boolea
     || particle.state === ParticleState.CONDENSING
 );
 
+const isMeltLikeState = (state: MatterState) => (
+    state === MatterState.MELTING || state === MatterState.EQUILIBRIUM_MELT
+);
+
+const getTrappedJitterScale = (state: MatterState, meltProgress: number) => {
+    if (!isMeltLikeState(state)) {
+        return 1;
+    }
+
+    return interpolateValue(0.16, 0.28, smoothstep(meltProgress));
+};
+
 const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, viewBounds, totalElements, onInspect }) => {
     const { messages } = useI18n();
     const { pathProgress, state, particles, boilProgress, meltProgress, matterRect, gasBounds, scfOpacity, simTime, sublimationProgress, powerInput } = physics;
+    const trappedParticleRenderCacheRef = useRef<Map<number, { x: number; y: number }>>(new Map());
 
     // --- 1. SVG Path Interpolator (Puddle / Solid) ---
     const currentPath = useMemo(() => {
@@ -234,15 +247,26 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
 
     const particleRenderMap = useMemo(() => {
         const resolved = new Map<number, { x: number; y: number }>();
-        if (!shouldResolveParticleOverlaps) return resolved;
+        if (!shouldResolveParticleOverlaps) {
+            trappedParticleRenderCacheRef.current = new Map();
+            return resolved;
+        }
 
         const visibleParticles = particles.filter((particle) => shouldResolveParticleVisually(particle, showParticles));
-        if (visibleParticles.length === 0) return resolved;
+        if (visibleParticles.length === 0) {
+            trappedParticleRenderCacheRef.current = new Map();
+            return resolved;
+        }
 
+        const isMeltLike = isMeltLikeState(state);
         const vibrationAmp = Math.sqrt(Math.max(0, physics.temperature)) * 0.15;
         const time = physics.simTime * 25;
+        const trappedJitterScale = getTrappedJitterScale(state, meltProgress);
+        const previousTrappedRenderCache = trappedParticleRenderCacheRef.current;
+        const nextTrappedRenderCache = new Map<number, { x: number; y: number }>();
         const nodes: Array<{
             id: number;
+            state: ParticleState;
             r: number;
             x: number;
             y: number;
@@ -254,14 +278,24 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
 
             if (particle.state === ParticleState.TRAPPED) {
                 const anchor = getTrappedParticleAnchor(particle, state, meltProgress);
-                const jitterX = Math.sin(time + particle.id * 123) * vibrationAmp;
-                const jitterY = Math.cos(time + particle.id * 321) * vibrationAmp;
+                const jitterX = Math.sin(time + particle.id * 123) * vibrationAmp * trappedJitterScale;
+                const jitterY = Math.cos(time + particle.id * 321) * vibrationAmp * trappedJitterScale;
                 targetX = anchor.x + jitterX;
                 targetY = anchor.y + jitterY;
+
+                if (isMeltLike) {
+                    const previous = previousTrappedRenderCache.get(particle.id);
+                    if (previous) {
+                        const smoothing = interpolateValue(0.22, 0.3, smoothstep(meltProgress));
+                        targetX = interpolateValue(previous.x, targetX, smoothing);
+                        targetY = interpolateValue(previous.y, targetY, smoothing);
+                    }
+                }
             }
 
             return {
                 id: particle.id,
+                state: particle.state,
                 r: particle.r,
                 x: targetX,
                 y: targetY,
@@ -308,7 +342,9 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
                     if (overlap > maxOverlap) {
                         maxOverlap = overlap;
                     }
-                    const correction = overlap * 0.5;
+                    const isBothTrapped = p1.state === ParticleState.TRAPPED && p2.state === ParticleState.TRAPPED;
+                    const correctionStrength = isMeltLike && isBothTrapped ? 0.18 : 0.5;
+                    const correction = overlap * correctionStrength;
 
                     p1.x -= nx * correction;
                     p1.y -= ny * correction;
@@ -320,16 +356,20 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
             return maxOverlap;
         };
 
-        for (let iter = 0; iter < 8; iter += 1) {
+        const relaxationPasses = isMeltLike ? 4 : 8;
+        const targetBlend = isMeltLike ? 0.26 : 0.15;
+        const finalPassLimit = isMeltLike ? 3 : 8;
+
+        for (let iter = 0; iter < relaxationPasses; iter += 1) {
             applySeparationPass();
 
             for (const node of nodes) {
-                node.x = interpolateValue(node.x, node.targetX, 0.15);
-                node.y = interpolateValue(node.y, node.targetY, 0.15);
+                node.x = interpolateValue(node.x, node.targetX, targetBlend);
+                node.y = interpolateValue(node.y, node.targetY, targetBlend);
             }
         }
 
-        for (let pass = 0; pass < 8; pass += 1) {
+        for (let pass = 0; pass < finalPassLimit; pass += 1) {
             const maxOverlap = applySeparationPass();
             if (maxOverlap < overlapTolerance) {
                 break;
@@ -338,7 +378,12 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
 
         for (const node of nodes) {
             resolved.set(node.id, { x: node.x, y: node.y });
+            if (node.state === ParticleState.TRAPPED) {
+                nextTrappedRenderCache.set(node.id, { x: node.x, y: node.y });
+            }
         }
+
+        trappedParticleRenderCacheRef.current = nextTrappedRenderCache;
 
         return resolved;
     }, [
@@ -713,10 +758,11 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
                                 renderY = resolvedParticlePosition.y;
                             } else {
                                 const anchor = getTrappedParticleAnchor(p, state, meltProgress);
-                                const vibrationAmp = Math.sqrt(physics.temperature) * 0.15;
+                                const vibrationAmp = Math.sqrt(Math.max(0, physics.temperature)) * 0.15;
+                                const jitterScale = getTrappedJitterScale(state, meltProgress);
                                 const time = physics.simTime * 25;
-                                const jitterX = Math.sin(time + p.id * 123) * vibrationAmp;
-                                const jitterY = Math.cos(time + p.id * 321) * vibrationAmp;
+                                const jitterX = Math.sin(time + p.id * 123) * vibrationAmp * jitterScale;
+                                const jitterY = Math.cos(time + p.id * 321) * vibrationAmp * jitterScale;
                                 renderX = anchor.x + jitterX;
                                 renderY = anchor.y + jitterY;
                             }

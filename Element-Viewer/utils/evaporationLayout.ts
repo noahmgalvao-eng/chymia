@@ -6,7 +6,8 @@ const PATH_NUMBER_REGEX = /[-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?/g;
 const HEX_VERTICAL_FACTOR = Math.sqrt(3) / 2;
 const PERIMETER_ANGLES = Array.from({ length: 8 }, (_, index) => (Math.PI / 4) * index);
 const MAX_LAYOUT_CACHE_ENTRIES = 64;
-const EVAPORATION_WAVE_BANDS = 8;
+const NEIGHBOR_DISTANCE_FACTOR = 1.18;
+const HEX_NEIGHBOR_COUNT = 6;
 
 let sharedCanvasContext: CanvasRenderingContext2D | null | undefined;
 const evaporationLayoutCache = new Map<string, EvaporationLayout>();
@@ -36,8 +37,9 @@ export interface EvaporationLayoutSlot {
     retentionScore: number;
     topExposure: number;
     sideExposure: number;
-    evaporationPriority: number;
-    waveBand: number;
+    organicBias: number;
+    neighborSlotIds: number[];
+    boundaryFaceCount: number;
 }
 
 export interface EvaporationLayout {
@@ -58,6 +60,10 @@ interface BuildEvaporationLayoutInput {
 }
 
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
+
+const fract = (value: number) => value - Math.floor(value);
+
+const getOrganicBias = (index: number) => fract(Math.sin((index + 1) * 91.345) * 47453.5453);
 
 const getCanvasContext = () => {
     if (typeof document === 'undefined') return null;
@@ -246,19 +252,6 @@ export const buildEvaporationLayout = ({
             const sideExposure = clamp01(Math.abs(worldX - worldCenterX) / halfWorldWidth);
             const cornerLoss = Math.sqrt(((topExposure * topExposure) + (sideExposure * sideExposure)) / 2);
             const retentionScore = (topExposure * 0.62) + (sideExposure * 0.24) + (cornerLoss * 0.14);
-            const waveBand = Math.max(
-                0,
-                Math.min(
-                    EVAPORATION_WAVE_BANDS - 1,
-                    Math.floor(retentionScore * EVAPORATION_WAVE_BANDS),
-                ),
-            );
-            const bandCenter = (waveBand + 0.5) / EVAPORATION_WAVE_BANDS;
-            const bandDistance = Math.abs(retentionScore - bandCenter);
-            const evaporationPriority = (waveBand * 1000)
-                + (topExposure * 100)
-                + (sideExposure * 10)
-                + bandDistance;
 
             slots.push({
                 index: slots.length,
@@ -267,37 +260,44 @@ export const buildEvaporationLayout = ({
                 retentionScore,
                 topExposure,
                 sideExposure,
-                evaporationPriority,
-                waveBand,
+                organicBias: getOrganicBias(slots.length),
+                neighborSlotIds: [],
+                boundaryFaceCount: 0,
             });
         }
 
         rowIndex += 1;
     }
 
-    slots.sort((a, b) => {
-        if (a.evaporationPriority !== b.evaporationPriority) {
-            return a.evaporationPriority - b.evaporationPriority;
-        }
-        if (a.waveBand !== b.waveBand) {
-            return a.waveBand - b.waveBand;
-        }
-        if (a.topExposure !== b.topExposure) {
-            return a.topExposure - b.topExposure;
-        }
-        if (a.sideExposure !== b.sideExposure) {
-            return a.sideExposure - b.sideExposure;
-        }
-        if (a.y !== b.y) {
-            return b.y - a.y;
-        }
-        return Math.abs(a.x - worldCenterX) - Math.abs(b.x - worldCenterX);
-    });
-
     const indexedSlots = slots.map((slot, index) => ({
         ...slot,
         index,
     }));
+
+    const neighborDistance = spacingWorld * NEIGHBOR_DISTANCE_FACTOR;
+    const neighborDistanceSq = neighborDistance * neighborDistance;
+
+    for (let i = 0; i < indexedSlots.length; i += 1) {
+        const source = indexedSlots[i];
+
+        for (let j = i + 1; j < indexedSlots.length; j += 1) {
+            const target = indexedSlots[j];
+            const dx = target.x - source.x;
+            const dy = target.y - source.y;
+            const distanceSq = (dx * dx) + (dy * dy);
+
+            if (distanceSq > neighborDistanceSq) continue;
+
+            source.neighborSlotIds.push(target.index);
+            target.neighborSlotIds.push(source.index);
+        }
+    }
+
+    indexedSlots.forEach((slot) => {
+        slot.boundaryFaceCount = Math.max(0, HEX_NEIGHBOR_COUNT - slot.neighborSlotIds.length);
+        slot.neighborSlotIds.sort((a, b) => a - b);
+    });
+
     const topSlotY = indexedSlots.reduce((minY, slot) => Math.min(minY, slot.y), Number.POSITIVE_INFINITY);
     const topExitY = Number.isFinite(topSlotY) ? topSlotY : worldMinY;
 

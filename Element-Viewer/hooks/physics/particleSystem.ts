@@ -206,7 +206,7 @@ export const updateParticleSystem = ({
         preferredY?: number,
     ) => {
         clearParticleLiquidTarget(particle);
-        particle.state = ParticleState.GAS;
+        particle.state = ParticleState.RISING;
         particle.x = Math.max(
             gasBounds.minX + particle.r,
             Math.min(gasBounds.maxX - particle.r, preferredX ?? particle.x),
@@ -244,6 +244,106 @@ export const updateParticleSystem = ({
     const getGasParticles = () => simState.particles.filter(
         (particle) => particle.state === ParticleState.GAS || particle.state === ParticleState.RISING,
     );
+    const normalizeRetainedSlotIds = (slotIds: number[]) => {
+        if (!evaporationLayout) return [];
+
+        return [...new Set(
+            slotIds.filter((slotId) => slotId >= 0 && slotId < evaporationLayout.capacity),
+        )].sort((a, b) => a - b);
+    };
+    const countOccupiedNeighbors = (slotId: number, occupiedSet: Set<number>) => {
+        if (!evaporationLayout) return 0;
+        const slot = evaporationLayout.slots[slotId];
+        if (!slot) return 0;
+
+        let occupiedNeighbors = 0;
+        for (const neighborSlotId of slot.neighborSlotIds) {
+            if (occupiedSet.has(neighborSlotId)) {
+                occupiedNeighbors += 1;
+            }
+        }
+
+        return occupiedNeighbors;
+    };
+    const getDynamicExposedFaces = (slotId: number, occupiedSet: Set<number>) => {
+        if (!evaporationLayout) return 0;
+        const slot = evaporationLayout.slots[slotId];
+        if (!slot) return 0;
+
+        return Math.max(0, 6 - countOccupiedNeighbors(slotId, occupiedSet));
+    };
+    const insertRetainedSlot = (slotIds: number[], slotId: number) => {
+        return normalizeRetainedSlotIds([...slotIds, slotId]);
+    };
+    const removeRetainedSlot = (slotIds: number[], slotId: number) => {
+        return slotIds.filter((candidate) => candidate !== slotId);
+    };
+    const chooseEvaporationSlot = (slotIds: number[]) => {
+        if (!evaporationLayout || slotIds.length === 0) return null;
+
+        const occupiedSet = new Set(slotIds);
+        let bestSlotId: number | null = null;
+        let bestScore = Number.NEGATIVE_INFINITY;
+
+        for (const slotId of slotIds) {
+            const slot = evaporationLayout.slots[slotId];
+            if (!slot) continue;
+
+            const exposedFaces = getDynamicExposedFaces(slotId, occupiedSet);
+            if (exposedFaces <= 0) continue;
+
+            const score = (slot.retentionScore * 0.78)
+                + ((exposedFaces / 6) * 0.14)
+                + (slot.organicBias * 0.08);
+
+            if (
+                score > bestScore
+                || (score === bestScore && bestSlotId !== null && slotId < bestSlotId)
+            ) {
+                bestScore = score;
+                bestSlotId = slotId;
+            }
+        }
+
+        if (bestSlotId !== null) {
+            return bestSlotId;
+        }
+
+        return slotIds[slotIds.length - 1] ?? null;
+    };
+    const chooseCondensationSlot = (slotIds: number[]) => {
+        if (!evaporationLayout) return null;
+
+        const occupiedSet = new Set(slotIds);
+        let bestSlotId: number | null = null;
+        let bestScore = Number.NEGATIVE_INFINITY;
+
+        for (const slot of evaporationLayout.slots) {
+            if (occupiedSet.has(slot.index)) continue;
+
+            const occupiedNeighborCount = countOccupiedNeighbors(slot.index, occupiedSet);
+            if (occupiedSet.size > 0 && occupiedNeighborCount === 0) continue;
+
+            const enclosureScore = occupiedSet.size === 0
+                ? (1 - slot.retentionScore)
+                : (occupiedNeighborCount / 6);
+            const surfacePenalty = slot.retentionScore;
+            const score = (enclosureScore * 0.62)
+                + ((1 - surfacePenalty) * 0.28)
+                + ((1 - slot.sideExposure) * 0.06)
+                + ((1 - slot.organicBias) * 0.04);
+
+            if (
+                score > bestScore
+                || (score === bestScore && bestSlotId !== null && slot.index < bestSlotId)
+            ) {
+                bestScore = score;
+                bestSlotId = slot.index;
+            }
+        }
+
+        return bestSlotId;
+    };
     const reconcileLiquidAssignments = () => {
         if (!evaporationLayout) {
             liquidSlotMap.clear();
@@ -320,13 +420,21 @@ export const updateParticleSystem = ({
             return;
         }
 
+        retainedSlotIds = normalizeRetainedSlotIds(retainedSlotIds);
         const liquidCount = Math.min(evaporationLayout.capacity, getLiquidParticles().length);
-        if (retainedSlotIds.length > liquidCount) {
-            retainedSlotIds = retainedSlotIds.slice(0, liquidCount);
+
+        while (retainedSlotIds.length > liquidCount) {
+            const slotId = chooseEvaporationSlot(retainedSlotIds);
+            if (slotId === null) break;
+            retainedSlotIds = removeRetainedSlot(retainedSlotIds, slotId);
         }
+
         while (retainedSlotIds.length < liquidCount) {
-            retainedSlotIds.push(retainedSlotIds.length);
+            const slotId = chooseCondensationSlot(retainedSlotIds);
+            if (slotId === null) break;
+            retainedSlotIds = insertRetainedSlot(retainedSlotIds, slotId);
         }
+
         reconcileLiquidAssignments();
     };
     const findLiquidParticleInSlot = (slotId: number) => {
@@ -525,10 +633,10 @@ export const updateParticleSystem = ({
         );
 
         if (currentGasCount < targetGasCount && retainedSlotIds.length > targetRetainedCount && retainedSlotIds.length > 0) {
-            const slotId = retainedSlotIds[retainedSlotIds.length - 1];
-            const candidate = findLiquidParticleInSlot(slotId);
+            const slotId = chooseEvaporationSlot(retainedSlotIds);
+            const candidate = slotId === null ? null : findLiquidParticleInSlot(slotId);
 
-            if (candidate) {
+            if (candidate && slotId !== null) {
                 const slot = evaporationLayout.slots[slotId];
                 const matterCenterX = matterRect.x + (matterRect.w / 2);
                 const normalizedSide = slot
@@ -536,16 +644,16 @@ export const updateParticleSystem = ({
                     : 0;
                 const edgeBias = normalizedSide * RISING_LATERAL_JITTER;
 
-                retainedSlotIds = retainedSlotIds.slice(0, -1);
+                retainedSlotIds = removeRetainedSlot(retainedSlotIds, slotId);
                 liquidSlotMap.delete(candidate.id);
                 launchParticleIntoGas(candidate, edgeBias, slot?.x ?? candidate.x, slot?.y ?? candidate.y);
             }
         } else if (currentGasCount > targetGasCount && retainedSlotIds.length < targetRetainedCount) {
-            const slotId = retainedSlotIds.length;
-            const candidate = findNearestGasParticle(slotId);
+            const slotId = chooseCondensationSlot(retainedSlotIds);
+            const candidate = slotId === null ? null : findNearestGasParticle(slotId);
 
-            if (candidate) {
-                retainedSlotIds = [...retainedSlotIds, slotId];
+            if (candidate && slotId !== null) {
+                retainedSlotIds = insertRetainedSlot(retainedSlotIds, slotId);
                 liquidSlotMap.set(candidate.id, slotId);
                 setParticleLiquidTargetToSlot(candidate, slotId);
                 candidate.state = ParticleState.CONDENSING;

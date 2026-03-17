@@ -127,10 +127,6 @@ const shouldResolveParticleVisually = (particle: Particle, showParticles: boolea
     || particle.state === ParticleState.CONDENSING
 );
 
-const hasLiquidSlotTarget = (particle: Particle) => (
-    Number.isFinite(particle.liquidTargetX) && Number.isFinite(particle.liquidTargetY)
-);
-
 const isMeltLikeState = (state: MatterState) => (
     state === MatterState.MELTING || state === MatterState.EQUILIBRIUM_MELT
 );
@@ -308,26 +304,6 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
                 targetY,
             };
         });
-
-        const shouldUseStableLiquidFastPath = (
-            state === MatterState.LIQUID
-            && visibleParticles.every((particle) => (
-                particle.state === ParticleState.TRAPPED
-                || (particle.state === ParticleState.CONDENSING && hasLiquidSlotTarget(particle))
-            ))
-        );
-
-        if (shouldUseStableLiquidFastPath) {
-            for (const node of nodes) {
-                resolved.set(node.id, { x: node.targetX, y: node.targetY });
-                if (node.state === ParticleState.TRAPPED || node.state === ParticleState.CONDENSING) {
-                    nextTrappedRenderCache.set(node.id, { x: node.targetX, y: node.targetY });
-                }
-            }
-
-            trappedParticleRenderCacheRef.current = nextTrappedRenderCache;
-            return resolved;
-        }
 
         const overlapTolerance = 1e-3;
         const distanceEpsilon = 1e-6;

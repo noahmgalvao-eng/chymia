@@ -7,7 +7,7 @@ import { SegmentedControl } from '@openai/apps-sdk-ui/components/SegmentedContro
 import { Select } from '@openai/apps-sdk-ui/components/Select';
 import { Slider } from '@openai/apps-sdk-ui/components/Slider';
 import { Switch } from '@openai/apps-sdk-ui/components/Switch';
-import { ELEMENTS } from '../../data/elements';
+import { getLocalizedElements } from '../../data/localizedElements';
 import { SOURCE_DATA } from '../../data/periodic_table_source';
 import { ChemicalElement } from '../../types';
 import {
@@ -245,7 +245,7 @@ const PeriodicTableSelector: React.FC<Props> = ({
   showParticles,
   setShowParticles,
 }) => {
-  const { messages, formatNumber } = useI18n();
+  const { locale, messages, formatNumber } = useI18n();
   const [activeSlider, setActiveSlider] = useState<'temperature' | 'pressure' | null>(null);
   const [tempUnit, setTempUnit] = useState<TempUnit>('K');
   const [pressureUnit, setPressureUnit] = useState<PressureUnit>('Pa');
@@ -260,7 +260,7 @@ const PeriodicTableSelector: React.FC<Props> = ({
   const latestDragOffset = useRef(0);
   const [closedTranslateY, setClosedTranslateY] = useState(720);
 
-  const visibleElements = useMemo(() => ELEMENTS, []);
+  const visibleElements = useMemo(() => getLocalizedElements(locale), [locale]);
 
   const selectedPreview = useMemo(() => selectedElements.slice(0, 6), [selectedElements]);
   const getAvatarLabel = useCallback((element: ChemicalElement) => {

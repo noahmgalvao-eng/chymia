@@ -110,6 +110,7 @@ export interface ChemicalElement {
   symbol: string;
   name: string;
   summary: string; // NEW: Description from source
+  displayCategory?: string;
   // NEW: Classification Data
   classification: {
     group: string;       // IUPAC (e.g., "1", "11")

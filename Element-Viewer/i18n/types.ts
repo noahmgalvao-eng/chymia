@@ -1,4 +1,10 @@
-export type SupportedLocale = 'en-US' | 'pt-BR';
+export type SupportedLocale =
+  | 'ar'
+  | 'en-US'
+  | 'es-ES'
+  | 'fr-FR'
+  | 'hi-IN'
+  | 'pt-BR';
 
 export interface Messages {
   common: {

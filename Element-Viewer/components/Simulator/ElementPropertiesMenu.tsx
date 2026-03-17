@@ -597,7 +597,7 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
 
           <div className="space-y-1">
             <p className="text-xs text-secondary">
-              {sourceInfo?.category || element.classification.groupName || 'Generated substance'}
+              {element.displayCategory || element.classification.groupName || 'Generated substance'}
             </p>
             <p className={`max-w-[20rem] text-xs leading-5 text-default ${showFullDescription ? 'whitespace-pre-wrap' : 'line-clamp-2-soft'}`}>
               {summaryText}

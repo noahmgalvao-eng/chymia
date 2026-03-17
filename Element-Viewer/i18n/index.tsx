@@ -1,21 +1,21 @@
 import React, { createContext, useContext, useEffect, useMemo } from 'react';
 import { useChatGPTGlobal } from '../hooks/useChatGPT';
+import ar from '../data/periodic_table_source_ar';
 import enUS from './en-US';
+import esES from './es-ES';
+import frFR from '../data/periodic_table_source_fr-FR';
+import hiIN from '../data/periodic_table_source_hi-IN';
 import ptBR from './pt-BR';
+import { resolveSupportedLocale } from './config';
 import type { Messages, SupportedLocale } from './types';
 
-const DEFAULT_LOCALE: SupportedLocale = 'en-US';
-
 const MESSAGES: Record<SupportedLocale, Messages> = {
+  ar,
   'en-US': enUS,
+  'es-ES': esES,
+  'fr-FR': frFR,
+  'hi-IN': hiIN,
   'pt-BR': ptBR,
-};
-
-const LOCALE_ALIASES: Record<string, SupportedLocale> = {
-  en: 'en-US',
-  'en-us': 'en-US',
-  pt: 'pt-BR',
-  'pt-br': 'pt-BR',
 };
 
 interface I18nContextValue {
@@ -25,33 +25,6 @@ interface I18nContextValue {
 }
 
 const I18nContext = createContext<I18nContextValue | null>(null);
-
-const getCanonicalLocale = (value: string): string => {
-  try {
-    return Intl.getCanonicalLocales(value)[0] ?? value;
-  } catch {
-    return value;
-  }
-};
-
-const resolveSupportedLocale = (...candidates: Array<string | null | undefined>): SupportedLocale => {
-  for (const candidate of candidates) {
-    if (!candidate) continue;
-
-    const canonical = getCanonicalLocale(candidate);
-    const directMatch = LOCALE_ALIASES[canonical.toLowerCase()];
-    if (directMatch) {
-      return directMatch;
-    }
-
-    const languageMatch = LOCALE_ALIASES[canonical.split('-')[0]?.toLowerCase() ?? ''];
-    if (languageMatch) {
-      return languageMatch;
-    }
-  }
-
-  return DEFAULT_LOCALE;
-};
 
 export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const openAiLocale = useChatGPTGlobal('locale');

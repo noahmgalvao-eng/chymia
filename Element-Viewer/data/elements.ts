@@ -552,6 +552,7 @@ export const ELEMENTS: ChemicalElement[] = SOURCE_DATA.elements.map((source: any
     symbol: source.symbol,
     name: source.name, // DIRECT FROM SOURCE
     summary: source.summary, // DIRECT FROM SOURCE
+    displayCategory: source.category,
 
     classification: {
       group: String(source.group),

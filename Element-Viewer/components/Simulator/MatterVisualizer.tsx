@@ -127,6 +127,10 @@ const shouldResolveParticleVisually = (particle: Particle, showParticles: boolea
     || particle.state === ParticleState.CONDENSING
 );
 
+const hasLiquidSlotTarget = (particle: Particle) => (
+    Number.isFinite(particle.liquidTargetX) && Number.isFinite(particle.liquidTargetY)
+);
+
 const isMeltLikeState = (state: MatterState) => (
     state === MatterState.MELTING || state === MatterState.EQUILIBRIUM_MELT
 );
@@ -259,6 +263,7 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
         }
 
         const isMeltLike = isMeltLikeState(state);
+        const isBoilingLike = state === MatterState.BOILING || state === MatterState.EQUILIBRIUM_BOIL;
         const vibrationAmp = Math.sqrt(Math.max(0, physics.temperature)) * 0.15;
         const time = physics.simTime * 25;
         const trappedJitterScale = getTrappedJitterScale(state, meltProgress);
@@ -304,17 +309,40 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
             };
         });
 
+        const shouldUseStableLiquidFastPath = (
+            state === MatterState.LIQUID
+            && visibleParticles.every((particle) => (
+                particle.state === ParticleState.TRAPPED
+                || (particle.state === ParticleState.CONDENSING && hasLiquidSlotTarget(particle))
+            ))
+        );
+
+        if (shouldUseStableLiquidFastPath) {
+            for (const node of nodes) {
+                resolved.set(node.id, { x: node.targetX, y: node.targetY });
+                if (node.state === ParticleState.TRAPPED || node.state === ParticleState.CONDENSING) {
+                    nextTrappedRenderCache.set(node.id, { x: node.targetX, y: node.targetY });
+                }
+            }
+
+            trappedParticleRenderCacheRef.current = nextTrappedRenderCache;
+            return resolved;
+        }
+
         const overlapTolerance = 1e-3;
         const distanceEpsilon = 1e-6;
+        const overlapNodes = isBoilingLike
+            ? nodes.filter((node) => node.state !== ParticleState.TRAPPED)
+            : nodes;
 
         const applySeparationPass = (): number => {
             let maxOverlap = 0;
 
-            for (let i = 0; i < nodes.length; i += 1) {
-                const p1 = nodes[i];
+            for (let i = 0; i < overlapNodes.length; i += 1) {
+                const p1 = overlapNodes[i];
 
-                for (let j = i + 1; j < nodes.length; j += 1) {
-                    const p2 = nodes[j];
+                for (let j = i + 1; j < overlapNodes.length; j += 1) {
+                    const p2 = overlapNodes[j];
                     const dx = p2.x - p1.x;
                     const dy = p2.y - p1.y;
                     const minDist = p1.r + p2.r;
@@ -358,12 +386,12 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
 
         const relaxationPasses = isMeltLike ? 4 : 8;
         const targetBlend = isMeltLike ? 0.26 : 0.15;
-        const finalPassLimit = isMeltLike ? 3 : 8;
+        const finalPassLimit = isMeltLike ? 3 : (isBoilingLike ? 4 : 8);
 
         for (let iter = 0; iter < relaxationPasses; iter += 1) {
             applySeparationPass();
 
-            for (const node of nodes) {
+            for (const node of overlapNodes) {
                 node.x = interpolateValue(node.x, node.targetX, targetBlend);
                 node.y = interpolateValue(node.y, node.targetY, targetBlend);
             }

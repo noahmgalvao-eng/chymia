@@ -20,7 +20,7 @@ import PeriodicTableSelector from './components/Simulator/PeriodicTableSelector'
 import SimulationUnit from './components/Simulator/SimulationUnit';
 import ElementPropertiesMenu from './components/Simulator/ElementPropertiesMenu';
 import RecordingStatsModal from './components/Simulator/RecordingStatsModal';
-import { ELEMENTS } from './data/elements';
+import { findLocalizedElementByLookup, getLocalizedElements } from './data/localizedElements';
 import { ChemicalElement, MatterState, PhysicsState } from './types';
 import { predictMatterState } from './hooks/physics/phaseCalculations';
 import { useElementViewerChat } from './hooks/useElementViewerChat';
@@ -58,9 +58,11 @@ const readPeriodicTableControlSessionState = (): boolean => {
 };
 
 function App() {
-    const { messages } = useI18n();
+    const { locale, messages } = useI18n();
+    const localizedElements = React.useMemo(() => getLocalizedElements(locale), [locale]);
+    const defaultElement = localizedElements[0];
     // State for Selection (Array for Multi-Element)
-    const [selectedElements, setSelectedElements] = useState<ChemicalElement[]>([ELEMENTS[0]]);
+    const [selectedElements, setSelectedElements] = useState<ChemicalElement[]>(() => defaultElement ? [defaultElement] : []);
     const [reactionProductsCache, setReactionProductsCache] = useState<ChemicalElement[]>([]);
     const [isMultiSelect, setIsMultiSelect] = useState(false);
 
@@ -81,6 +83,7 @@ function App() {
     const lastProcessedAiTimestampRef = useRef(0);
     const reactionAtomicNumberRef = useRef(900000);
     const reactionProductsCacheRef = useRef<ChemicalElement[]>([]);
+    const localeRef = useRef(locale);
     const syncStateToChatGPTRef = useRef<() => Promise<void>>(async () => { });
     const { logEvent } = useTelemetry();
 
@@ -126,6 +129,55 @@ function App() {
     useEffect(() => {
         reactionProductsCacheRef.current = reactionProductsCache;
     }, [reactionProductsCache]);
+
+    useEffect(() => {
+        localeRef.current = locale;
+    }, [locale]);
+
+    useEffect(() => {
+        const localizeNaturalElement = (element: ChemicalElement): ChemicalElement => {
+            if (element.category === 'reaction_product') {
+                return element;
+            }
+
+            return localizedElements.find(
+                (candidate) =>
+                    candidate.atomicNumber === element.atomicNumber ||
+                    candidate.symbol === element.symbol
+            ) ?? element;
+        };
+
+        setSelectedElements((previous) => {
+            const next = previous.map(localizeNaturalElement);
+            return next.every((element, index) => element === previous[index]) ? previous : next;
+        });
+
+        setContextMenu((previous) => {
+            if (!previous) return previous;
+
+            const nextElement = localizeNaturalElement(previous.element);
+            return nextElement === previous.element
+                ? previous
+                : { ...previous, element: nextElement };
+        });
+
+        setRecordingResults((previous) => {
+            if (!previous) return previous;
+
+            let didChange = false;
+            const next = previous.map((entry) => {
+                const nextElement = localizeNaturalElement(entry.element);
+                if (nextElement === entry.element) {
+                    return entry;
+                }
+
+                didChange = true;
+                return { ...entry, element: nextElement };
+            });
+
+            return didChange ? next : previous;
+        });
+    }, [localizedElements]);
 
     // Recording State
     const [isRecording, setIsRecording] = useState(false);
@@ -425,10 +477,7 @@ function App() {
                 const novosElementos = configuracao_ia.elementos
                     .map((simboloIA) => {
                         const lookup = normalizeElementLookup(simboloIA);
-                        return ELEMENTS.find((el) =>
-                            el.symbol.toLowerCase() === lookup ||
-                            el.name.toLowerCase() === lookup
-                        );
+                        return findLocalizedElementByLookup(lookup, localeRef.current);
                     })
                     .filter((el): el is ChemicalElement => Boolean(el));
 
@@ -477,7 +526,7 @@ function App() {
 
         if (!isMultiSelect) {
             if (allowSingleDeselect && exists && selectedElements.length === 1) {
-                nextSelection = [ELEMENTS[0]];
+                nextSelection = defaultElement ? [defaultElement] : selectedElements;
                 didChangeSelection = true;
             } else if (!exists || selectedElements.length > 1) {
                 // Single Mode: Replace

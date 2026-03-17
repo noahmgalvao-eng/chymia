@@ -77,7 +77,7 @@ const getTargetPathProgress = (
     }
 
     if (phase === MatterState.BOILING || phase === MatterState.EQUILIBRIUM_BOIL) {
-        return getEvaporationPathProgress(boilProgress);
+        return 5;
     }
 
     if (isLiquidSyncTransition(phase, lastState, detectedPhase)) {

@@ -6,6 +6,7 @@ interface GeometryInput {
     pressure: number;
     currentTemp: number;
     meltProgress: number;
+    boilProgress: number;
     phase: MatterState;
     viewBounds: ViewBoxDimensions;
     scfTransitionProgress: number;
@@ -25,12 +26,15 @@ const PARTICLE_RADIUS = 6;
 const MIN_PACKED_HEIGHT = ROWS * PARTICLE_RADIUS * 2;
 const INIT_W = 134;
 const INIT_H = 134;
+const LIQUID_W = 300;
+const LIQUID_H = 70;
 
 export const calculateGeometry = ({
     element,
     pressure,
     currentTemp,
     meltProgress,
+    boilProgress,
     phase,
     viewBounds,
     scfTransitionProgress,
@@ -59,6 +63,11 @@ export const calculateGeometry = ({
         targetW = INIT_W;
         // As sublimationProgress goes 0 -> 1, Height goes 100% -> 0%
         targetH = INIT_H * (1 - sublimationProgress);
+    } else if (phase === MatterState.BOILING || phase === MatterState.EQUILIBRIUM_BOIL) {
+        const liquidFraction = Math.max(0, Math.min(1, 1 - boilProgress));
+        const shrinkScale = Math.sqrt(liquidFraction);
+        targetW = LIQUID_W * shrinkScale;
+        targetH = LIQUID_H * shrinkScale;
     } else {
         // STANDARD MELTING/SOLID BEHAVIOR
         squeezeProgress = Math.pow(Math.max(0, Math.min(1, meltProgress)), 0.4); 
@@ -70,7 +79,13 @@ export const calculateGeometry = ({
     // Apply Compression
     if (targetH > 0) {
         targetH = targetH * theoreticalCompressionFactor;
-        if (targetH < MIN_PACKED_HEIGHT && (phase !== MatterState.SUBLIMATION && phase !== MatterState.EQUILIBRIUM_SUB)) {
+        if (
+            targetH < MIN_PACKED_HEIGHT
+            && phase !== MatterState.SUBLIMATION
+            && phase !== MatterState.EQUILIBRIUM_SUB
+            && phase !== MatterState.BOILING
+            && phase !== MatterState.EQUILIBRIUM_BOIL
+        ) {
             // Only clamp minimum height if NOT sublimating (sublimation can disappear completely)
             targetH = MIN_PACKED_HEIGHT; 
         }
@@ -81,7 +96,11 @@ export const calculateGeometry = ({
 
     const effectiveCompressionFactor = (phase === MatterState.SUBLIMATION || phase === MatterState.EQUILIBRIUM_SUB) 
         ? theoreticalCompressionFactor // Just simple compression
-        : targetH / (134 - (64 * squeezeProgress)); // Relative to uncompressed melt state
+        : (
+            phase === MatterState.BOILING || phase === MatterState.EQUILIBRIUM_BOIL
+                ? theoreticalCompressionFactor
+                : targetH / (134 - (64 * squeezeProgress))
+        ); // Relative to uncompressed melt state
 
     const matterRect: MatterRect = {
         w: targetW, h: targetH, x: 200 - (targetW / 2), y: 300 - targetH 

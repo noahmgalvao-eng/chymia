@@ -143,6 +143,7 @@ export const usePhysics = ({ element, temperature: targetEnvTemp, pressure, qual
            pressure,
            currentTemp: thermo.currentTemp,
            meltProgress: thermo.meltProgress,
+           boilProgress: thermo.boilProgress,
            phase: thermo.phase,
            viewBounds,
            scfTransitionProgress: thermo.scfTransitionProgress,

@@ -632,53 +632,73 @@ export const updateParticleSystem = ({
             Math.min(evaporationLayout.capacity, effectiveParticleCount - targetGasCount),
         );
 
-        if (currentGasCount < targetGasCount && retainedSlotIds.length > targetRetainedCount && retainedSlotIds.length > 0) {
+        let gasCount = currentGasCount;
+
+        while (gasCount < targetGasCount && retainedSlotIds.length > targetRetainedCount && retainedSlotIds.length > 0) {
             const slotId = chooseEvaporationSlot(retainedSlotIds);
             const candidate = slotId === null ? null : findLiquidParticleInSlot(slotId);
 
-            if (candidate && slotId !== null) {
-                const slot = evaporationLayout.slots[slotId];
-                const matterCenterX = matterRect.x + (matterRect.w / 2);
-                const normalizedSide = slot
-                    ? (slot.x - matterCenterX) / Math.max(1, matterRect.w * 0.5)
-                    : 0;
-                const edgeBias = normalizedSide * RISING_LATERAL_JITTER;
-
-                retainedSlotIds = removeRetainedSlot(retainedSlotIds, slotId);
-                liquidSlotMap.delete(candidate.id);
-                launchParticleIntoGas(candidate, edgeBias, slot?.x ?? candidate.x, slot?.y ?? candidate.y);
+            if (!candidate || slotId === null) {
+                break;
             }
-        } else if (currentGasCount > targetGasCount && retainedSlotIds.length < targetRetainedCount) {
+
+            const slot = evaporationLayout.slots[slotId];
+            const matterCenterX = matterRect.x + (matterRect.w / 2);
+            const normalizedSide = slot
+                ? (slot.x - matterCenterX) / Math.max(1, matterRect.w * 0.5)
+                : 0;
+            const edgeBias = normalizedSide * RISING_LATERAL_JITTER;
+
+            retainedSlotIds = removeRetainedSlot(retainedSlotIds, slotId);
+            liquidSlotMap.delete(candidate.id);
+            launchParticleIntoGas(candidate, edgeBias, slot?.x ?? candidate.x, slot?.y ?? candidate.y);
+            gasCount += 1;
+        }
+
+        while (gasCount > targetGasCount && retainedSlotIds.length < targetRetainedCount) {
             const slotId = chooseCondensationSlot(retainedSlotIds);
             const candidate = slotId === null ? null : findNearestGasParticle(slotId);
 
-            if (candidate && slotId !== null) {
-                retainedSlotIds = insertRetainedSlot(retainedSlotIds, slotId);
-                liquidSlotMap.set(candidate.id, slotId);
-                setParticleLiquidTargetToSlot(candidate, slotId);
-                candidate.state = ParticleState.CONDENSING;
-                candidate.vx *= 0.2;
-                candidate.vy = Math.max(80, Math.abs(candidate.vy) * 0.35);
+            if (!candidate || slotId === null) {
+                break;
             }
+
+            retainedSlotIds = insertRetainedSlot(retainedSlotIds, slotId);
+            liquidSlotMap.set(candidate.id, slotId);
+            setParticleLiquidTargetToSlot(candidate, slotId);
+            candidate.state = ParticleState.CONDENSING;
+            candidate.vx *= 0.2;
+            candidate.vy = Math.max(80, Math.abs(candidate.vy) * 0.35);
+            gasCount -= 1;
         }
 
         reconcileLiquidAssignments();
     } else if (isBoilingLike) {
         const targetGasCount = Math.floor(effectiveBoilProgress * effectiveParticleCount);
-        const activeGasParticles = getGasParticles();
+        let gasCount = getGasParticles().length;
 
-        if (activeGasParticles.length < targetGasCount) {
+        while (gasCount < targetGasCount) {
             const trapped = simState.particles.find((particle) => particle.state === ParticleState.TRAPPED);
-            if (trapped) {
-                launchParticleIntoGas(trapped, 0, trapped.homeX, trapped.homeY);
+            if (!trapped) {
+                break;
             }
-        } else if (activeGasParticles.length > targetGasCount && !isSCFMode) {
-            const gasCandidate = simState.particles.find((particle) => particle.state === ParticleState.GAS);
-            if (gasCandidate) {
-                gasCandidate.state = ParticleState.CONDENSING;
-                gasCandidate.vx *= 0.2;
-                gasCandidate.vy = Math.max(80, Math.abs(gasCandidate.vy) * 0.35);
+
+            launchParticleIntoGas(trapped, 0, trapped.homeX, trapped.homeY);
+            gasCount += 1;
+        }
+
+        while (gasCount > targetGasCount && !isSCFMode) {
+            const gasCandidate = simState.particles.find(
+                (particle) => particle.state === ParticleState.GAS || particle.state === ParticleState.RISING,
+            );
+            if (!gasCandidate) {
+                break;
             }
+
+            gasCandidate.state = ParticleState.CONDENSING;
+            gasCandidate.vx *= 0.2;
+            gasCandidate.vy = Math.max(80, Math.abs(gasCandidate.vy) * 0.35);
+            gasCount -= 1;
         }
     }
 

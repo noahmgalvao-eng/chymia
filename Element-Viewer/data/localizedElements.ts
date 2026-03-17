@@ -1,14 +1,8 @@
 import type { SupportedLocale } from '../i18n/types';
-import { SOURCE_DATA as AR_SOURCE } from '../i18n/ar';
 import { resolveSupportedLocale } from '../i18n/config';
-import { SOURCE_DATA as FR_FR_SOURCE } from '../i18n/fr-FR';
-import { SOURCE_DATA as HI_IN_SOURCE } from '../i18n/hi-IN';
 import type { ChemicalElement } from '../types';
 import { ELEMENTS as BASE_ELEMENTS } from './elements';
 import { SOURCE_DATA as BASE_SOURCE } from './periodic_table_source';
-import { SOURCE_DATA as EN_US_SOURCE } from './periodic_table_source_en-US';
-import { SOURCE_DATA as ES_ES_SOURCE } from './periodic_table_source_es-ES';
-import { SOURCE_DATA as PT_BR_SOURCE } from './periodic_table_source_pt-BR';
 
 type LocalizedElementTextFields = {
   symbol?: string;
@@ -24,13 +18,29 @@ type LocalizedElementSourceInput =
       elements?: Record<string, LocalizedElementTextFields> | LocalizedElementTextFields[];
     };
 
+type LocalizedSourceModule = {
+  SOURCE_DATA?: LocalizedElementSourceInput;
+  default?: LocalizedElementSourceInput;
+};
+
+const DATA_SOURCE_MODULES = import.meta.glob<LocalizedSourceModule>('./periodic_table_source_*.ts', {
+  eager: true,
+});
+
+const I18N_SOURCE_MODULES = import.meta.glob<LocalizedSourceModule>('../i18n/{ar,fr-FR,hi-IN}.ts', {
+  eager: true,
+});
+
+const getModuleSource = (module: LocalizedSourceModule | undefined): LocalizedElementSourceInput | undefined =>
+  module?.SOURCE_DATA ?? module?.default;
+
 const LOCALIZED_SOURCE_BY_LOCALE: Partial<Record<SupportedLocale, LocalizedElementSourceInput>> = {
-  ar: AR_SOURCE as LocalizedElementSourceInput,
-  'en-US': EN_US_SOURCE as LocalizedElementSourceInput,
-  'es-ES': ES_ES_SOURCE as LocalizedElementSourceInput,
-  'fr-FR': FR_FR_SOURCE as LocalizedElementSourceInput,
-  'hi-IN': HI_IN_SOURCE as LocalizedElementSourceInput,
-  'pt-BR': PT_BR_SOURCE as LocalizedElementSourceInput,
+  ar: getModuleSource(I18N_SOURCE_MODULES['../i18n/ar.ts']),
+  'en-US': getModuleSource(DATA_SOURCE_MODULES['./periodic_table_source_en-US.ts']),
+  'es-ES': getModuleSource(DATA_SOURCE_MODULES['./periodic_table_source_es-ES.ts']),
+  'fr-FR': getModuleSource(I18N_SOURCE_MODULES['../i18n/fr-FR.ts']),
+  'hi-IN': getModuleSource(I18N_SOURCE_MODULES['../i18n/hi-IN.ts']),
+  'pt-BR': getModuleSource(DATA_SOURCE_MODULES['./periodic_table_source_pt-BR.ts']),
 };
 
 const BASE_SOURCE_CATEGORY_BY_SYMBOL = new Map<string, string>(

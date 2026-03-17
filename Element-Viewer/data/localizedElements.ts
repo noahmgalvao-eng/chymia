@@ -23,7 +23,7 @@ type LocalizedSourceModule = {
   default?: LocalizedElementSourceInput;
 };
 
-const DATA_SOURCE_MODULES = import.meta.glob<LocalizedSourceModule>('./periodic_table_source_*.ts', {
+const DATA_SOURCE_MODULES = import.meta.glob<LocalizedSourceModule>('./periodic_table_source_{en-US,es-ES,pt-BR}.ts', {
   eager: true,
 });
 

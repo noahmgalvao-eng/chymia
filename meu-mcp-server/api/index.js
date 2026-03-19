@@ -159,16 +159,16 @@ function createElementViewerServer(connectDomains) {
         status: "open",
         timestamp_atualizacao: Date.now(),
         configuracao_ia: {
-          elementos: args.elementos || null,
-          temperatura_K: args.temperatura_K || null,
-          pressao_Pa: args.pressao_Pa || null,
-          interpretacao_do_modelo: args.mensagem_interpretacao,
+          elementos: args.elements || null,
+          temperatura_K: args.temperature_K || null,
+          pressao_Pa: args.pressure_Pa || null,
+          interpretacao_do_modelo: args.interpretation_message,
         },
       },
       content: [
         {
           type: "text",
-          text: args.mensagem_interpretacao,
+          text: args.interpretation_message,
         },
       ],
     })
@@ -241,13 +241,13 @@ function createElementViewerServer(connectDomains) {
           criticalPoint: args.criticalPoint,
         },
         configuracao_ia: {
-          interpretacao_do_modelo: args.mensagem_interpretacao,
+          interpretacao_do_modelo: args.interpretation_message,
         },
       },
       content: [
         {
           type: "text",
-          text: args.mensagem_interpretacao,
+          text: args.interpretation_message,
         },
       ],
     })

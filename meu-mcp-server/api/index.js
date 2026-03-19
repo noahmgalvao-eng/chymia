@@ -103,7 +103,7 @@ function createElementViewerServer(connectDomains) {
           _meta: {
             "openai/widgetPrefersBorder": true,
             "openai/widgetDomain": "https://chatgpt.com",
-            "openai/widgetDescription": "Element Viewer interativo para explorar estados da materia e transicoes de fase.",
+            "openai/widgetDescription": "Interactive visualizer for chemical elements, atom structures, and phase transitions.",
             "openai/widgetCSP": {
               connect_domains: connectDomains,
               resource_domains: [
@@ -118,33 +118,33 @@ function createElementViewerServer(connectDomains) {
 
   // --- 2. REGISTER TOOL: ABRIR E ATUALIZAR SIMULADOR ---
   server.registerTool(
-    "abrir_simulador_interativo",
+    "element_viewer.open_or_update",
     {
-      title: "Abrir ou Atualizar Element Viewer",
+      title: "Open or Update Element Viewer",
       description:
-        "Use esta ferramenta para abrir o app OU para ATUALIZAR a visualizacao atual se o app ja estiver em tela cheia. O app reage em tempo real. Importante: Se o usuario pedir para 'adicionar' um elemento, voce DEVE consultar o widgetState atual, pegar os elementos que ja estao na tela e enviar a lista COMPLETA (antigos + novos) no parametro 'elementos'.",
+        "Use this tool to open the app OR to UPDATE the current view if the app is already in full-screen. The app reacts in real-time. Important: If the user asks to 'add' an element, you MUST check the current widgetState, get the elements that are already on the screen, and send the COMPLETE list (old + new) in the 'elements' parameter.",
       inputSchema: z.object({
-        elementos: z
+        elements: z
           .array(z.string())
           .max(6)
           .optional()
           .describe(
-            "Lista COMPLETA de simbolos quimicos para mostrar. Se vazio, mantem o que esta na tela."
+            "COMPLETE list of chemical symbols to display. If empty, keeps what is currently on the screen."
           ),
-        temperatura_K: z
+        temperature_K: z
           .number()
           .max(6000)
           .optional()
-          .describe("Nova temperatura em Kelvin. Se nao especificada, deixe vazio."),
-        pressao_Pa: z
+          .describe("New temperature in Kelvin. If not specified, leave empty."),
+        pressure_Pa: z
           .number()
           .max(100000000000)
           .optional()
-          .describe("Nova pressao em Pascal. Se nao especificada, deixe vazio."),
-        mensagem_interpretacao: z
+          .describe("New pressure in Pascal. If not specified, leave empty."),
+        interpretation_message: z
           .string()
           .describe(
-            "Frase curta em primeira pessoa sobre a acao. Ex: 'Adicionei o Oxigenio e aumentei a temperatura para 5000K na sua tela.'"
+            "Short first-person sentence about the action. Ex: 'I added Oxygen and increased the temperature to 5000K on your screen.'"
           ),
       }),
       _meta: {
@@ -175,42 +175,42 @@ function createElementViewerServer(connectDomains) {
   );
 
   server.registerTool(
-    "inject_reaction_substance",
+    "element_viewer.inject_reaction_substance",
     {
-      title: "Injetar Substância de Reação",
+      title: "Inject Reaction Substance",
       description:
-        "Use esta ferramenta quando o usuario pedir para reagir os elementos atuais. Retorne uma unica substancia com propriedades termodinamicas completas para o motor do simulador.",
+        "Use this tool when the user asks to react the current elements. Return a single substance with complete thermodynamic properties for the simulator engine.",
       inputSchema: z.object({
-        substanceName: z.string().describe("Nome da substancia gerada (ex.: Agua)."),
-        formula: z.string().describe("Formula/simbolo exibido na UI (ex.: H2O)."),
+        substanceName: z.string().describe("Name of the generated substance (e.g., Water)."),
+        formula: z.string().describe("Formula/symbol displayed in the UI (e.g., H2O)."),
         suggestedColorHex: z
           .string()
-          .describe("Cor HEX sugerida para renderizacao visual (ex.: #4FC3F7)."),
-        mass: z.number().describe("Massa molar em u."),
-        meltingPointK: z.number().describe("Ponto de fusao em Kelvin."),
-        boilingPointK: z.number().describe("Ponto de ebulicao em Kelvin."),
-        specificHeatSolid: z.number().describe("Calor especifico no estado solido em J/kg.K."),
-        specificHeatLiquid: z.number().describe("Calor especifico no estado liquido em J/kg.K."),
-        specificHeatGas: z.number().describe("Calor especifico no estado gasoso em J/kg.K."),
-        latentHeatFusion: z.number().describe("Calor latente de fusao em J/kg."),
-        latentHeatVaporization: z.number().describe("Calor latente de vaporizacao em J/kg."),
-        enthalpyVapJmol: z.number().describe("Entalpia molar de vaporizacao em J/mol."),
-        enthalpyFusionJmol: z.number().describe("Entalpia molar de fusao em J/mol."),
+          .describe("Suggested HEX color for visual rendering (e.g., #4FC3F7)."),
+        mass: z.number().describe("Molar mass in u."),
+        meltingPointK: z.number().describe("Melting point in Kelvin."),
+        boilingPointK: z.number().describe("Boiling point in Kelvin."),
+        specificHeatSolid: z.number().describe("Specific heat in the solid state in J/kg.K."),
+        specificHeatLiquid: z.number().describe("Specific heat in the liquid state in J/kg.K."),
+        specificHeatGas: z.number().describe("Specific heat in the gaseous state in J/kg.K."),
+        latentHeatFusion: z.number().describe("Latent heat of fusion in J/kg."),
+        latentHeatVaporization: z.number().describe("Latent heat of vaporization in J/kg."),
+        enthalpyVapJmol: z.number().describe("Molar enthalpy of vaporization in J/mol."),
+        enthalpyFusionJmol: z.number().describe("Molar enthalpy of fusion in J/mol."),
         triplePoint: z
           .object({
-            tempK: z.number().describe("Temperatura do ponto triplo em Kelvin."),
-            pressurePa: z.number().describe("Pressao do ponto triplo em Pascal."),
+            tempK: z.number().describe("Triple point temperature in Kelvin."),
+            pressurePa: z.number().describe("Triple point pressure in Pascal."),
           })
-          .describe("Ponto triplo da substancia."),
+          .describe("Triple point of the substance."),
         criticalPoint: z
           .object({
-            tempK: z.number().describe("Temperatura critica em Kelvin."),
-            pressurePa: z.number().describe("Pressao critica em Pascal."),
+            tempK: z.number().describe("Critical temperature in Kelvin."),
+            pressurePa: z.number().describe("Critical pressure in Pascal."),
           })
-          .describe("Ponto critico da substancia."),
-        mensagem_interpretacao: z
+          .describe("Critical point of the substance."),
+        interpretation_message: z
           .string()
-          .describe("Frase curta explicando o resultado e as limitacoes da reacao."),
+          .describe("Short sentence explaining the result, informations of the substance and the limitations of the reaction."),
       }),
       _meta: {
         "readOnlyHint": true,

@@ -682,11 +682,10 @@ const PeriodicTableSelector: React.FC<Props> = ({
                           variant="solid"
                           size="sm"
                           onClick={() => onSelectReactionProduct(reaction)}
-                          className="periodic-reaction-pill relative z-[5] text-xs font-semibold"
+                          className={`periodic-reaction-pill relative z-[5] text-xs font-semibold ${isSelected ? 'periodic-reaction-pill-selected' : ''}`}
                           style={reactionStyle}
                           title={reaction.name}
                         >
-                          {isSelected && <span className="periodic-cell-selection-ring periodic-reaction-selection-ring" aria-hidden />}
                           {reaction.symbol}
                         </Button>
                       );
@@ -727,7 +726,6 @@ const PeriodicTableSelector: React.FC<Props> = ({
                     className={`periodic-cell ${isSelected ? 'periodic-cell-selected' : ''}`}
                     style={cellStyle}
                   >
-                    {isSelected && <span className="periodic-cell-selection-ring" aria-hidden />}
                     <span
                       className="pointer-events-none absolute left-1 top-1 text-[8px] leading-none"
                       style={{ color: 'var(--periodic-cell-muted)' }}

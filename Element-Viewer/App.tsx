@@ -44,6 +44,7 @@ import {
 
 const TOOLTIP_CLASS = 'tooltip-solid';
 const PERIODIC_TABLE_CONTROL_SESSION_KEY = 'element-viewer-periodic-table-control-used';
+const DESKTOP_INLINE_PERIODIC_BOTTOM_OFFSET_PX = 72;
 
 const readPeriodicTableControlSessionState = (): boolean => {
     if (typeof window === 'undefined') {
@@ -710,7 +711,9 @@ function App() {
             : (isDesktopApp && isFullscreen && typeof window !== 'undefined'
                 ? Math.round(window.innerHeight * desktopBottomInset)
                 : 0);
-    const periodicBottomDockOffset = isDesktopApp ? 0 : (16 + insets.bottom);
+    const periodicBottomDockOffset = isDesktopApp
+        ? (isFullscreen ? 0 : DESKTOP_INLINE_PERIODIC_BOTTOM_OFFSET_PX)
+        : (16 + insets.bottom);
     const iconScale = isDesktopApp ? 1.2 : 1.15;
     const controlIconSizePx = `${(16 * iconScale).toFixed(2)}px`;
     const controlIconStyle = { width: controlIconSizePx, height: controlIconSizePx };

@@ -161,7 +161,7 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
     // --- DNA Visual Properties (Dynamic from JSON) ---
     const { solid, liquid, gas } = element.visualDNA;
 
-    const isDarkTheme = useMemo(() => {
+    const isDarkTheme = (() => {
         if (typeof window === 'undefined') return false;
 
         const dataTheme = document.documentElement.getAttribute('data-theme');
@@ -169,7 +169,7 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
         if (dataTheme === 'light') return false;
 
         return window.matchMedia('(prefers-color-scheme: dark)').matches;
-    }, []);
+    })();
 
     const adjustedSolidColor = useMemo(() => tuneColorForTheme(solid.color, isDarkTheme), [solid.color, isDarkTheme]);
     const adjustedLiquidColor = useMemo(() => tuneColorForTheme(liquid.color, isDarkTheme), [liquid.color, isDarkTheme]);
@@ -527,12 +527,16 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
     }, [identityLabel, isReactionProduct]);
 
     const identityTextColor = useMemo(() => {
+        if (isDarkTheme) {
+            return '#111111';
+        }
+
         return getRelativeLuminance(adjustedGasColor) > 0.56
             ? 'var(--color-text)'
             : 'var(--color-text-inverse)';
-    }, [adjustedGasColor]);
+    }, [adjustedGasColor, isDarkTheme]);
 
-    const identityTextStroke = identityTextColor === 'var(--color-text)'
+    const identityTextStroke = isDarkTheme || identityTextColor === 'var(--color-text)'
         ? 'rgba(255, 255, 255, 0.72)'
         : 'rgba(15, 23, 42, 0.24)';
 

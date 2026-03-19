@@ -44,8 +44,6 @@ import {
 
 const TOOLTIP_CLASS = 'tooltip-solid';
 const PERIODIC_TABLE_CONTROL_SESSION_KEY = 'element-viewer-periodic-table-control-used';
-const DESKTOP_INLINE_PERIODIC_BOTTOM_OFFSET_PX = 72;
-
 const readPeriodicTableControlSessionState = (): boolean => {
     if (typeof window === 'undefined') {
         return false;
@@ -694,16 +692,16 @@ function App() {
     const qualityScale = 1.0;
     const isDesktopViewport = typeof window !== 'undefined' ? window.innerWidth >= 1024 : false;
     const isDesktopApp = userAgent?.device?.type === 'desktop' || (!userAgent && isDesktopViewport) || (userAgent?.device?.type === 'unknown' && isDesktopViewport);
-    const desktopBottomInset = isDesktopApp && isFullscreen ? 0.15 : 0;
+    const desktopBottomInset = isDesktopApp && isFullscreen ? 0.22 : 0;
     const computedDesktopMarginBottom =
         isDesktopApp && isFullscreen
-            ? (typeof maxHeight === 'number' ? Math.max(0, maxHeight * desktopBottomInset) : '12vh')
+            ? (typeof maxHeight === 'number' ? Math.max(0, maxHeight * desktopBottomInset) : '18vh')
             : undefined;
     const computedFullscreenHeight =
         isFullscreen
             ? (typeof maxHeight === 'number'
                 ? Math.max(0, maxHeight - (typeof computedDesktopMarginBottom === 'number' ? computedDesktopMarginBottom : 0))
-                : (isDesktopApp ? '88vh' : undefined))
+                : (isDesktopApp ? '82vh' : undefined))
             : undefined;
     const desktopBottomMarginPx =
         typeof computedDesktopMarginBottom === 'number'
@@ -711,9 +709,7 @@ function App() {
             : (isDesktopApp && isFullscreen && typeof window !== 'undefined'
                 ? Math.round(window.innerHeight * desktopBottomInset)
                 : 0);
-    const periodicBottomDockOffset = isDesktopApp
-        ? (isFullscreen ? 0 : DESKTOP_INLINE_PERIODIC_BOTTOM_OFFSET_PX)
-        : (16 + insets.bottom);
+    const periodicBottomDockOffset = isDesktopApp ? 0 : (16 + insets.bottom);
     const iconScale = isDesktopApp ? 1.2 : 1.15;
     const controlIconSizePx = `${(16 * iconScale).toFixed(2)}px`;
     const controlIconStyle = { width: controlIconSizePx, height: controlIconSizePx };

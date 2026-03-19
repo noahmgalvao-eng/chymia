@@ -1,47 +1,9 @@
+import { SUPPORTED_LOCALES, resolveSupportedLocale } from '../i18n/config';
+import { getElementSourceForLocale, type LocalizedElementText } from '../i18n/resources';
 import type { SupportedLocale } from '../i18n/types';
-import { resolveSupportedLocale } from '../i18n/config';
 import type { ChemicalElement } from '../types';
 import { ELEMENTS as BASE_ELEMENTS } from './elements';
 import { SOURCE_DATA as BASE_SOURCE } from './periodic_table_source';
-
-type LocalizedElementTextFields = {
-  symbol?: string;
-  name?: string;
-  summary?: string;
-  category?: string;
-};
-
-type LocalizedElementSourceInput =
-  | Record<string, LocalizedElementTextFields>
-  | LocalizedElementTextFields[]
-  | {
-      elements?: Record<string, LocalizedElementTextFields> | LocalizedElementTextFields[];
-    };
-
-type LocalizedSourceModule = {
-  SOURCE_DATA?: LocalizedElementSourceInput;
-  default?: LocalizedElementSourceInput;
-};
-
-const DATA_SOURCE_MODULES = import.meta.glob<LocalizedSourceModule>('./periodic_table_source_{en-US,es-ES,pt-BR}.ts', {
-  eager: true,
-});
-
-const I18N_SOURCE_MODULES = import.meta.glob<LocalizedSourceModule>('../i18n/{ar,fr-FR,hi-IN}.ts', {
-  eager: true,
-});
-
-const getModuleSource = (module: LocalizedSourceModule | undefined): LocalizedElementSourceInput | undefined =>
-  module?.SOURCE_DATA ?? module?.default;
-
-const LOCALIZED_SOURCE_BY_LOCALE: Partial<Record<SupportedLocale, LocalizedElementSourceInput>> = {
-  ar: getModuleSource(I18N_SOURCE_MODULES['../i18n/ar.ts']),
-  'en-US': getModuleSource(DATA_SOURCE_MODULES['./periodic_table_source_en-US.ts']),
-  'es-ES': getModuleSource(DATA_SOURCE_MODULES['./periodic_table_source_es-ES.ts']),
-  'fr-FR': getModuleSource(I18N_SOURCE_MODULES['../i18n/fr-FR.ts']),
-  'hi-IN': getModuleSource(I18N_SOURCE_MODULES['../i18n/hi-IN.ts']),
-  'pt-BR': getModuleSource(DATA_SOURCE_MODULES['./periodic_table_source_pt-BR.ts']),
-};
 
 const BASE_SOURCE_CATEGORY_BY_SYMBOL = new Map<string, string>(
   (BASE_SOURCE.elements as Array<{ symbol?: string; category?: string }>)
@@ -51,74 +13,26 @@ const BASE_SOURCE_CATEGORY_BY_SYMBOL = new Map<string, string>(
 
 const ELEMENTS_BY_LOCALE_CACHE = new Map<SupportedLocale, ChemicalElement[]>();
 const ELEMENT_BY_SYMBOL_BY_LOCALE_CACHE = new Map<SupportedLocale, Map<string, ChemicalElement>>();
-const LOCALIZED_TEXT_BY_LOCALE_CACHE = new Map<SupportedLocale, Map<string, LocalizedElementTextFields>>();
+const LOCALIZED_TEXT_BY_LOCALE_CACHE = new Map<SupportedLocale, Map<string, LocalizedElementText>>();
 const LOOKUP_SYMBOL_BY_QUERY = new Map<string, string>();
 
 const normalizeLookup = (value: string): string => value.trim().toLowerCase();
 
-const isLocalizedFieldRecord = (
-  value: unknown,
-): value is Record<string, LocalizedElementTextFields> => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return false;
-  }
-
-  return Object.values(value).every(
-    (entry) => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry),
-  );
-};
-
-const normalizeLocalizedEntries = (
-  source: LocalizedElementSourceInput | undefined,
-): Array<LocalizedElementTextFields & { symbol: string }> => {
-  if (!source) return [];
-
-  const container =
-    'elements' in source && source.elements !== undefined
-      ? source.elements
-      : source;
-
-  if (Array.isArray(container)) {
-    return container
-      .filter((entry): entry is LocalizedElementTextFields & { symbol: string } => typeof entry?.symbol === 'string')
-      .filter((entry) => typeof entry.name === 'string' || typeof entry.summary === 'string' || typeof entry.category === 'string')
-      .map((entry) => ({
-        symbol: entry.symbol,
-        name: entry.name,
-        summary: entry.summary,
-        category: entry.category,
-      }));
-  }
-
-  if (isLocalizedFieldRecord(container)) {
-    return Object.entries(container)
-      .filter(([, entry]) => entry && typeof entry === 'object')
-      .filter(([, entry]) => typeof entry.name === 'string' || typeof entry.summary === 'string' || typeof entry.category === 'string')
-      .map(([symbol, entry]) => ({
-        symbol,
-        name: entry.name,
-        summary: entry.summary,
-        category: entry.category,
-      }));
-  }
-
-  return [];
-};
-
-const getLocalizedTextBySymbol = (localeInput: string | SupportedLocale): Map<string, LocalizedElementTextFields> => {
+const getLocalizedTextBySymbol = (
+  localeInput: string | SupportedLocale,
+): Map<string, LocalizedElementText> => {
   const locale = resolveSupportedLocale(localeInput);
   const cached = LOCALIZED_TEXT_BY_LOCALE_CACHE.get(locale);
   if (cached) {
     return cached;
   }
 
-  const normalized = new Map<string, LocalizedElementTextFields>();
-  for (const entry of normalizeLocalizedEntries(LOCALIZED_SOURCE_BY_LOCALE[locale])) {
-    normalized.set(entry.symbol, entry);
-  }
+  const localizedTextBySymbol = new Map<string, LocalizedElementText>(
+    getElementSourceForLocale(locale).elements.map((entry) => [entry.symbol, entry]),
+  );
 
-  LOCALIZED_TEXT_BY_LOCALE_CACHE.set(locale, normalized);
-  return normalized;
+  LOCALIZED_TEXT_BY_LOCALE_CACHE.set(locale, localizedTextBySymbol);
+  return localizedTextBySymbol;
 };
 
 export const getLocalizedElements = (localeInput: string | SupportedLocale): ChemicalElement[] => {
@@ -167,10 +81,14 @@ export const getLocalizedElementBySymbol = (
 };
 
 const registerElementLookup = (lookupValue: string | undefined, symbol: string) => {
-  if (!lookupValue) return;
+  if (!lookupValue) {
+    return;
+  }
 
   const normalized = normalizeLookup(lookupValue);
-  if (!normalized) return;
+  if (!normalized) {
+    return;
+  }
 
   LOOKUP_SYMBOL_BY_QUERY.set(normalized, symbol);
 };
@@ -180,8 +98,8 @@ for (const element of BASE_ELEMENTS) {
   registerElementLookup(element.name, element.symbol);
 }
 
-for (const locale of Object.keys(LOCALIZED_SOURCE_BY_LOCALE) as SupportedLocale[]) {
-  for (const entry of normalizeLocalizedEntries(LOCALIZED_SOURCE_BY_LOCALE[locale])) {
+for (const locale of SUPPORTED_LOCALES) {
+  for (const entry of getElementSourceForLocale(locale).elements) {
     registerElementLookup(entry.symbol, entry.symbol);
     registerElementLookup(entry.name, entry.symbol);
   }

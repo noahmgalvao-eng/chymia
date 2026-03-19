@@ -1,5 +1,14 @@
 import type { SupportedLocale } from './types';
 
+export const SUPPORTED_LOCALES: SupportedLocale[] = [
+  'ar',
+  'en-US',
+  'es-ES',
+  'fr-FR',
+  'hi-IN',
+  'pt-BR',
+];
+
 export const DEFAULT_LOCALE: SupportedLocale = 'en-US';
 
 export const LOCALE_ALIASES: Record<string, SupportedLocale> = {

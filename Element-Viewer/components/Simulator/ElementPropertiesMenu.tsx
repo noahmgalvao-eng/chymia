@@ -557,7 +557,8 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
     [element.name, wikiUrl],
   );
 
-  const summaryText = element.summary || 'No summary available.';
+  const summaryText = element.summary?.trim() || messages.common.notAvailable;
+  const categoryText = element.displayCategory?.trim() || element.classification.groupName || messages.common.notAvailable;
   const canExpandDescription = summaryText.length > 140;
   const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1366;
   const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 768;
@@ -597,7 +598,7 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
 
           <div className="space-y-1">
             <p className="text-xs text-secondary">
-              {element.displayCategory || element.classification.groupName || 'Generated substance'}
+              {categoryText}
             </p>
             <p className={`max-w-[20rem] text-xs leading-5 text-default ${showFullDescription ? 'whitespace-pre-wrap' : 'line-clamp-2-soft'}`}>
               {summaryText}

@@ -20,41 +20,42 @@ import PeriodicTableSelector from './components/Simulator/PeriodicTableSelector'
 import SimulationUnit from './components/Simulator/SimulationUnit';
 import ElementPropertiesMenu from './components/Simulator/ElementPropertiesMenu';
 import RecordingStatsModal from './components/Simulator/RecordingStatsModal';
+import {
+    buildReactionCacheKey,
+    createReactionElement,
+    getReactionElementKey,
+} from './app/reactionProducts';
+import {
+    collapseSelectionForSingleMode,
+    computeNextSelection,
+} from './app/selection';
+import { parseStructuredContentUpdate } from './app/structuredContent';
+import {
+    buildSimulationTelemetryContext,
+    getSelectedAtomicNumbers,
+} from './app/telemetry';
+import {
+    buildElementWidgetStateEntry,
+    buildWidgetStatePayload,
+    resolveWidgetPhysicsSnapshot,
+} from './app/widgetState';
 import { findLocalizedElementByLookup, getLocalizedElements } from './data/localizedElements';
-import { ChemicalElement, MatterState, PhysicsState } from './types';
-import { predictMatterState } from './hooks/physics/phaseCalculations';
+import { readStructuredContentFromOpenAi } from './infrastructure/browser/openai';
+import {
+    readSessionBoolean,
+    writeSessionBoolean,
+} from './infrastructure/browser/sessionStorage';
+import { ChemicalElement, PhysicsState } from './types';
 import { useElementViewerChat } from './hooks/useElementViewerChat';
 import { useAppChatControls } from './hooks/useAppChatControls';
 import { useTelemetry } from './hooks/useTelemetry';
 import { useI18n } from './i18n';
 import {
     ContextMenuData,
-    IAReactionSubstance,
-    IAStructuredContent,
-    clampPositive,
-    formatCompact,
-    getSupportedEquilibria,
-    normalizeElementLookup,
-    phaseToPresentPhases,
-    phaseToReadable,
-    readOpenAiStructuredContent,
-    roundTo,
-    safeHexColor,
 } from './app/appDefinitions';
 
 const TOOLTIP_CLASS = 'tooltip-solid';
 const PERIODIC_TABLE_CONTROL_SESSION_KEY = 'element-viewer-periodic-table-control-used';
-const readPeriodicTableControlSessionState = (): boolean => {
-    if (typeof window === 'undefined') {
-        return false;
-    }
-
-    try {
-        return window.sessionStorage.getItem(PERIODIC_TABLE_CONTROL_SESSION_KEY) === '1';
-    } catch {
-        return false;
-    }
-};
 
 function App() {
     const { locale, messages } = useI18n();
@@ -75,7 +76,9 @@ function App() {
     const [timeScale, setTimeScale] = useState<number>(1);
     const [isPaused, setIsPaused] = useState(false);
     const [contextMenu, setContextMenu] = useState<ContextMenuData | null>(null);
-    const [hasUsedPeriodicTableControl, setHasUsedPeriodicTableControl] = useState<boolean>(() => readPeriodicTableControlSessionState());
+    const [hasUsedPeriodicTableControl, setHasUsedPeriodicTableControl] = useState<boolean>(() =>
+        readSessionBoolean(PERIODIC_TABLE_CONTROL_SESSION_KEY)
+    );
 
     // Refs
     const simulationRegistry = useRef<Map<number, () => PhysicsState>>(new Map());
@@ -190,94 +193,30 @@ function App() {
         const elementsData = selectedElements.map((el) => {
             const getter = simulationRegistry.current.get(el.atomicNumber);
             const currentState = getter ? getter() : null;
-            const shouldFallbackToPredicted =
-                !currentState ||
-                (currentState.simTime === 0 && currentState.temperature === 0 && temperature > 0);
+            const snapshot = resolveWidgetPhysicsSnapshot({
+                currentState,
+                element: el,
+                pressure,
+                targetTemperature: temperature,
+            });
 
-            const predicted = predictMatterState(el, temperature, pressure);
-            const effectiveState = shouldFallbackToPredicted ? predicted.state : currentState.state;
-            const effectiveTempK = shouldFallbackToPredicted ? temperature : currentState.temperature;
-            const meltingPointCurrent = shouldFallbackToPredicted ? predicted.T_melt : currentState.meltingPointCurrent;
-            const boilingPointCurrent = shouldFallbackToPredicted ? predicted.T_boil : currentState.boilingPointCurrent;
-            const sublimationPointCurrent = shouldFallbackToPredicted ? predicted.T_sub : currentState.sublimationPointCurrent;
-
-            const meltProgress = shouldFallbackToPredicted
-                ? (effectiveState === MatterState.EQUILIBRIUM_MELT ? 0.5 : 0)
-                : currentState.meltProgress;
-            const boilProgress = shouldFallbackToPredicted
-                ? (effectiveState === MatterState.EQUILIBRIUM_BOIL ? 0.5 : 0)
-                : currentState.boilProgress;
-            const sublimationProgress = shouldFallbackToPredicted
-                ? (effectiveState === MatterState.EQUILIBRIUM_SUB ? 0.5 : 0)
-                : currentState.sublimationProgress;
-            const scfTransitionProgress = shouldFallbackToPredicted ? 0 : currentState.scfTransitionProgress;
-
-            const deltaToTargetK = temperature - effectiveTempK;
-            const absDelta = Math.abs(deltaToTargetK);
-            const powerInput = shouldFallbackToPredicted ? 0 : currentState.powerInput;
-
-            let tendenciaTermica = messages.app.widgetState.thermalTrendStable;
-            if (absDelta > 0.2) {
-                tendenciaTermica = deltaToTargetK > 0
-                    ? messages.app.widgetState.thermalTrendHeatingTowardTarget
-                    : messages.app.widgetState.thermalTrendCoolingTowardTarget;
-            } else if (Math.abs(powerInput) > 0.05) {
-                tendenciaTermica = powerInput > 0
-                    ? messages.app.widgetState.thermalTrendHeatingLightly
-                    : messages.app.widgetState.thermalTrendCoolingLightly;
-            }
-
-            const hasTriplePoint = !!el.properties.triplePoint;
-            const hasCriticalPoint = !!el.properties.criticalPoint;
-            const isAtTriplePointNow =
-                effectiveState === MatterState.EQUILIBRIUM_TRIPLE ||
-                (!!el.properties.triplePoint &&
-                    Math.abs(effectiveTempK - el.properties.triplePoint.tempK) < 1 &&
-                    Math.max(pressure, el.properties.triplePoint.pressurePa) /
-                    Math.min(Math.max(1e-9, pressure), el.properties.triplePoint.pressurePa) < 1.1);
-            const isAtSupercriticalNow =
-                effectiveState === MatterState.SUPERCRITICAL || effectiveState === MatterState.TRANSITION_SCF;
-
-            return {
-                numero_atomico: el.atomicNumber,
-                nome: el.name,
-                simbolo: el.symbol,
-                estado_da_materia_codigo: effectiveState,
-                estado_da_materia: phaseToReadable(messages, effectiveState),
-                fases_presentes: phaseToPresentPhases(messages, effectiveState),
-                tendencia_termica: tendenciaTermica,
-                temperatura_efetiva_atual_K: roundTo(effectiveTempK, 2),
-                delta_para_temperatura_alvo_K: roundTo(deltaToTargetK, 2),
-                progresso: {
-                    fusao: roundTo(Math.min(1, Math.max(0, meltProgress)), 3),
-                    ebulicao: roundTo(Math.min(1, Math.max(0, boilProgress)), 3),
-                    sublimacao: roundTo(Math.min(1, Math.max(0, sublimationProgress)), 3),
-                    transicao_supercritica: roundTo(Math.min(1, Math.max(0, scfTransitionProgress)), 3)
-                },
-                limites_fase_K: {
-                    fusao: roundTo(meltingPointCurrent, 2),
-                    ebulicao: roundTo(boilingPointCurrent, 2),
-                    sublimacao: sublimationPointCurrent > 0 ? roundTo(sublimationPointCurrent, 2) : null
-                },
-                pontos_termodinamicos: {
-                    tem_ponto_triplo: hasTriplePoint,
-                    tem_ponto_critico: hasCriticalPoint,
-                    esta_no_ponto_triplo_agora: isAtTriplePointNow,
-                    esta_em_regime_supercritico_agora: isAtSupercriticalNow
-                },
-                estados_de_equilibrio_suportados_no_modelo: getSupportedEquilibria(messages, el)
-            };
+            return buildElementWidgetStateEntry({
+                element: el,
+                messages,
+                pressure,
+                snapshot,
+                targetTemperature: temperature,
+            });
         });
 
-        await window.openai.setWidgetState({
-            ambiente: {
-                temperatura_alvo_K: roundTo(temperature, 2),
-                pressao_Pa: roundTo(pressure, 6),
-                total_elementos_visiveis: selectedElements.length
-            },
-            elementos_selecionados_em_ordem: selectedElements.map((el) => el.symbol),
-            elementos_visiveis: elementsData
-        });
+        await window.openai.setWidgetState(
+            buildWidgetStatePayload(
+                selectedElements,
+                elementsData,
+                temperature,
+                pressure
+            )
+        );
     };
     syncStateToChatGPTRef.current = syncStateToChatGPT;
 
@@ -292,16 +231,8 @@ function App() {
         handleInfoClick,
     });
 
-    const getSelectedAtomicNumbers = (elements: ChemicalElement[] = selectedElements) => {
-        return elements.map((element) => element.atomicNumber);
-    };
-
-    const getSimulationContext = () => ({
-        selectedAtomicNumbers: getSelectedAtomicNumbers(),
-        selectedSymbols: selectedElements.map((element) => element.symbol),
-        temperatureK: roundTo(temperature, 2),
-        pressurePa: roundTo(pressure, 6),
-    });
+    const getSimulationContext = () =>
+        buildSimulationTelemetryContext(selectedElements, temperature, pressure);
 
     const markPeriodicTableControlUsed = () => {
         if (hasUsedPeriodicTableControl) {
@@ -309,15 +240,7 @@ function App() {
         }
 
         setHasUsedPeriodicTableControl(true);
-        if (typeof window === 'undefined') {
-            return;
-        }
-
-        try {
-            window.sessionStorage.setItem(PERIODIC_TABLE_CONTROL_SESSION_KEY, '1');
-        } catch {
-            // Ignore storage failures inside sandboxed environments.
-        }
+        writeSessionBoolean(PERIODIC_TABLE_CONTROL_SESSION_KEY, true);
     };
 
     const handlePeriodicTableButtonClick = () => {
@@ -349,69 +272,6 @@ function App() {
         logEvent('AI_PROMPT_HELP_CLICK', getSimulationContext());
     };
 
-    const buildReactionElement = (reaction: IAReactionSubstance): ChemicalElement => {
-        const atomicNumber = reactionAtomicNumberRef.current++;
-        const color = safeHexColor(reaction.suggestedColorHex);
-
-        return {
-            atomicNumber,
-            symbol: reaction.formula,
-            name: reaction.substanceName,
-            summary: 'Model-estimated reaction product.',
-            mass: clampPositive(reaction.mass, 18),
-            category: 'reaction_product',
-            classification: {
-                group: 'N/A',
-                groupBlock: 'N/A',
-                period: 0,
-                electronShells: 0,
-            },
-            visualDNA: {
-                solid: { color, opacidade: 1 },
-                liquid: { color, opacidade: 0.8 },
-                gas: { color, opacidade: 0.4 },
-            },
-            properties: {
-                meltingPointK: clampPositive(reaction.meltingPointK, 273.15),
-                boilingPointK: clampPositive(reaction.boilingPointK, 373.15),
-                specificHeatSolid: clampPositive(reaction.specificHeatSolid, 1000),
-                specificHeatLiquid: clampPositive(reaction.specificHeatLiquid, 1000),
-                specificHeatGas: clampPositive(reaction.specificHeatGas, 1000),
-                latentHeatFusion: clampPositive(reaction.latentHeatFusion, 100000),
-                latentHeatVaporization: clampPositive(reaction.latentHeatVaporization, 1000000),
-                enthalpyVapJmol: clampPositive(reaction.enthalpyVapJmol, 40000),
-                enthalpyFusionJmol: clampPositive(reaction.enthalpyFusionJmol, 6000),
-                triplePoint: {
-                    tempK: clampPositive(reaction.triplePoint.tempK, 200),
-                    pressurePa: clampPositive(reaction.triplePoint.pressurePa, 100),
-                },
-                criticalPoint: {
-                    tempK: clampPositive(reaction.criticalPoint.tempK, 500),
-                    pressurePa: clampPositive(reaction.criticalPoint.pressurePa, 100000),
-                },
-                meltingPointDisplay: formatCompact(clampPositive(reaction.meltingPointK, 273.15), 'K'),
-                boilingPointDisplay: formatCompact(clampPositive(reaction.boilingPointK, 373.15), 'K'),
-                specificHeatSolidDisplay: `${roundTo(clampPositive(reaction.specificHeatSolid, 1000), 2)}`,
-                specificHeatLiquidDisplay: `${roundTo(clampPositive(reaction.specificHeatLiquid, 1000), 2)}`,
-                specificHeatGasDisplay: `${roundTo(clampPositive(reaction.specificHeatGas, 1000), 2)}`,
-                latentHeatFusionDisplay: `${roundTo(clampPositive(reaction.latentHeatFusion, 100000) / 1000, 2)}`,
-                latentHeatVaporizationDisplay: `${roundTo(clampPositive(reaction.latentHeatVaporization, 1000000) / 1000, 2)}`,
-                triplePointTempDisplay: `${roundTo(clampPositive(reaction.triplePoint.tempK, 200), 2)}`,
-                triplePointPressDisplay: `${roundTo(clampPositive(reaction.triplePoint.pressurePa, 100) / 1000, 4)}`,
-                criticalPointTempDisplay: `${roundTo(clampPositive(reaction.criticalPoint.tempK, 500), 2)}`,
-                criticalPointPressDisplay: `${roundTo(clampPositive(reaction.criticalPoint.pressurePa, 100000) / 1000, 2)}`,
-            },
-        };
-    };
-
-    const buildReactionCacheKey = (formula: string, name: string): string => {
-        return `${normalizeElementLookup(formula)}::${normalizeElementLookup(name)}`;
-    };
-
-    const getReactionElementKey = (element: ChemicalElement): string => {
-        return buildReactionCacheKey(element.symbol, element.name);
-    };
-
     useEffect(() => {
         let cancelled = false;
         let raf1 = 0;
@@ -439,61 +299,55 @@ function App() {
         });
     };
 
-    const handleSliderRelease = () => {
-        scheduleSyncStateToChatGPT();
-    };
-
     // --- RADAR REATIVO DO CHATGPT (ATUALIZACAO EM TEMPO REAL) ---
     useEffect(() => {
         if (typeof window === 'undefined') return;
 
         const verificarAtualizacoesIA = () => {
-            const rawContent = readOpenAiStructuredContent();
-            if (!rawContent || typeof rawContent !== 'object') return;
-
-            const content = rawContent as IAStructuredContent;
-            const { configuracao_ia, timestamp_atualizacao } = content;
-
-            if (
-                !configuracao_ia ||
-                typeof timestamp_atualizacao !== 'number' ||
-                timestamp_atualizacao <= lastProcessedAiTimestampRef.current
-            ) {
+            const update = parseStructuredContentUpdate(
+                readStructuredContentFromOpenAi(),
+                lastProcessedAiTimestampRef.current
+            );
+            if (!update) {
                 return;
             }
 
-            lastProcessedAiTimestampRef.current = timestamp_atualizacao;
+            lastProcessedAiTimestampRef.current = update.timestamp;
 
-            if (typeof configuracao_ia.temperatura_K === 'number') {
-                setTemperature(Math.min(configuracao_ia.temperatura_K, 6000));
+            if (update.temperatureK !== null) {
+                setTemperature(update.temperatureK);
             }
 
-            if (typeof configuracao_ia.pressao_Pa === 'number') {
-                setPressure(Math.min(configuracao_ia.pressao_Pa, 100000000000));
+            if (update.pressurePa !== null) {
+                setPressure(update.pressurePa);
             }
 
-            if (Array.isArray(configuracao_ia.elementos) && configuracao_ia.elementos.length > 0) {
-                const novosElementos = configuracao_ia.elementos
-                    .map((simboloIA) => {
-                        const lookup = normalizeElementLookup(simboloIA);
-                        return findLocalizedElementByLookup(lookup, localeRef.current);
-                    })
+            if (update.elementLookups.length > 0) {
+                const novosElementos = update.elementLookups
+                    .map((lookup) =>
+                        findLocalizedElementByLookup(lookup, localeRef.current)
+                    )
                     .filter((el): el is ChemicalElement => Boolean(el));
 
                 if (novosElementos.length > 0) {
-                    setSelectedElements(novosElementos.slice(0, 6));
+                    setSelectedElements(novosElementos);
                 }
             }
 
-            if (content.substancia_reacao) {
+            if (update.reactionSubstance) {
                 const reactionKey = buildReactionCacheKey(
-                    content.substancia_reacao.formula,
-                    content.substancia_reacao.substanceName
+                    update.reactionSubstance.formula,
+                    update.reactionSubstance.substanceName
                 );
                 const cachedReaction = reactionProductsCacheRef.current.find(
                     (candidate) => getReactionElementKey(candidate) === reactionKey
                 );
-                const targetReaction = cachedReaction ?? buildReactionElement(content.substancia_reacao);
+                const targetReaction =
+                    cachedReaction ??
+                    createReactionElement(
+                        update.reactionSubstance,
+                        reactionAtomicNumberRef.current++
+                    );
 
                 if (!cachedReaction) {
                     setReactionProductsCache((previous) => [targetReaction, ...previous]);
@@ -519,40 +373,15 @@ function App() {
         source: 'periodic_table' | 'reaction_product'
     ) => {
         if (isRecording) return; // Prevent changing elements while recording
-        let didChangeSelection = false;
-        let nextSelection = selectedElements;
-        const exists = selectedElements.some((item) => item.atomicNumber === el.atomicNumber);
+        const { didChange, nextSelection } = computeNextSelection({
+            allowSingleDeselect,
+            candidate: el,
+            fallbackElement: defaultElement,
+            isMultiSelect,
+            selectedElements,
+        });
 
-        if (!isMultiSelect) {
-            if (allowSingleDeselect && exists && selectedElements.length === 1) {
-                nextSelection = defaultElement ? [defaultElement] : selectedElements;
-                didChangeSelection = true;
-            } else if (!exists || selectedElements.length > 1) {
-                // Single Mode: Replace
-                nextSelection = [el];
-                didChangeSelection = true;
-            }
-        } else {
-            // Multi Mode: Toggle / FIFO
-            if (exists) {
-                // Remove if exists
-                const filtered = selectedElements.filter(e => e.atomicNumber !== el.atomicNumber);
-                // If removing the last one, don't allow empty array (fallback to default or keep one)
-                if (filtered.length === 0) return;
-                nextSelection = filtered;
-                didChangeSelection = true;
-            } else {
-                // Add new
-                nextSelection = [...selectedElements, el];
-                if (nextSelection.length > 6) {
-                    // FIFO: Remove first, add new to end
-                    nextSelection = nextSelection.slice(1);
-                }
-                didChangeSelection = true;
-            }
-        }
-
-        if (didChangeSelection) {
+        if (didChange) {
             setSelectedElements(nextSelection);
             logEvent('ELEMENT_SELECT', {
                 atomicNumber: el.atomicNumber,
@@ -582,7 +411,7 @@ function App() {
         setIsMultiSelect(newValue);
         // If turning OFF, revert to just the last selected element
         if (!newValue && selectedElements.length > 1) {
-            setSelectedElements([selectedElements[selectedElements.length - 1]]);
+            setSelectedElements(collapseSelectionForSingleMode(selectedElements));
             scheduleSyncStateToChatGPT();
         }
     };
@@ -637,7 +466,7 @@ function App() {
             setRecordingStartData(startMap);
             setIsRecording(true);
             logEvent('RECORD_START', {
-                selectedAtomicNumbers: getSelectedAtomicNumbers(),
+                selectedAtomicNumbers: getSelectedAtomicNumbers(selectedElements),
             });
         } else {
             // STOP RECORDING
@@ -660,7 +489,7 @@ function App() {
             setRecordingResults(results);
             setIsRecording(false);
             logEvent('RECORD_STOP', {
-                selectedAtomicNumbers: getSelectedAtomicNumbers(),
+                selectedAtomicNumbers: getSelectedAtomicNumbers(selectedElements),
                 recordedCount: results.length,
             });
         }

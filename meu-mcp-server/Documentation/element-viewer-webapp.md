@@ -289,6 +289,6 @@ npm run preview
 
 ### Deploy na Vercel (`vercel.json`)
 
-- **CSP Headers** — `frame-ancestors * https://chatgpt.com https://chat.openai.com` (permite iframe no ChatGPT)
-- **CORS** — `Access-Control-Allow-Origin: *`
+- **CSP Headers** — `frame-ancestors https://chatgpt.com https://chat.openai.com` (permite embed no ChatGPT sem abrir iframe para qualquer origem)
+- **Security Headers** — `X-Content-Type-Options`, `Referrer-Policy` e `Permissions-Policy`
 - **Rewrites** — Todas as rotas servem `index.html` (SPA)

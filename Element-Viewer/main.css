@@ -390,6 +390,97 @@
     0 18px 42px color-mix(in oklab, #0f172a 10%, transparent);
 }
 
+.standalone-footer {
+  border-top: 1px solid color-mix(in oklab, var(--color-border-default, #d5dce5) 84%, transparent);
+  background: color-mix(in oklab, var(--color-surface, #ffffff) 84%, transparent);
+  backdrop-filter: blur(18px);
+}
+
+.standalone-footer-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.88rem;
+  color: var(--color-text-secondary, #596579);
+}
+
+.standalone-footer-separator {
+  color: color-mix(in oklab, var(--color-text-secondary, #596579) 56%, transparent);
+}
+
+.standalone-footer-link {
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: color 180ms ease, opacity 180ms ease;
+}
+
+.standalone-footer-link:hover {
+  color: var(--color-text-default, #111827);
+}
+
+.standalone-footer-language {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  color: var(--color-text-secondary, #596579);
+}
+
+.standalone-footer-language-icon {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+
+.standalone-language-select {
+  min-width: 8.5rem;
+  border: 1px solid color-mix(in oklab, var(--color-border-default, #d5dce5) 88%, transparent);
+  border-radius: 999px;
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in oklab, var(--color-surface-elevated, #ffffff) 88%, var(--color-background-info-soft, #e5f3ff) 12%) 0%,
+      color-mix(in oklab, var(--color-surface-elevated, #ffffff) 90%, var(--color-background-caution-soft, #fff2d9) 10%) 100%
+    );
+  padding: 0.45rem 2rem 0.45rem 0.9rem;
+  color: var(--color-text-default, #111827);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 500;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position:
+    calc(100% - 1rem) calc(50% - 0.12rem),
+    calc(100% - 0.72rem) calc(50% - 0.12rem);
+  background-size: 0.38rem 0.38rem, 0.38rem 0.38rem;
+  background-repeat: no-repeat;
+}
+
+.standalone-language-select:focus {
+  outline: 2px solid color-mix(in oklab, var(--color-background-info-solid, #2899ff) 42%, transparent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .standalone-footer-meta {
+    gap: 0.45rem;
+    font-size: 0.8rem;
+  }
+
+  .standalone-footer-language {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
 [data-theme='dark'] .standalone-header-link,
 [data-theme='dark'] .standalone-tab-button,
 [data-theme='dark'] .standalone-action-button {
@@ -418,4 +509,29 @@
 [data-theme='dark'] .standalone-page-title,
 [data-theme='dark'] .standalone-document-title {
   color: color-mix(in oklab, var(--color-text-default, #f4f7fb) 80%, var(--color-text-secondary, #c6d0de) 20%);
+}
+
+[data-theme='dark'] .standalone-footer {
+  border-top-color: color-mix(in oklab, var(--color-border-default, #384457) 76%, transparent);
+  background: color-mix(in oklab, var(--color-surface-elevated, #182130) 72%, transparent);
+}
+
+[data-theme='dark'] .standalone-footer-meta,
+[data-theme='dark'] .standalone-footer-language {
+  color: color-mix(in oklab, var(--color-text-default, #f4f7fb) 70%, var(--color-text-secondary, #c6d0de) 30%);
+}
+
+[data-theme='dark'] .standalone-footer-link:hover {
+  color: color-mix(in oklab, var(--color-text-default, #f4f7fb) 90%, #ffffff 10%);
+}
+
+[data-theme='dark'] .standalone-language-select {
+  border-color: color-mix(in oklab, var(--color-border-default, #384457) 64%, var(--color-background-info-solid, #2899ff) 36%);
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in oklab, var(--color-surface-elevated, #182130) 68%, var(--color-background-info-soft, #34516f) 32%) 0%,
+      color-mix(in oklab, var(--color-surface-secondary, #1d2635) 72%, var(--color-background-caution-soft, #6a5a31) 28%) 100%
+    );
+  color: color-mix(in oklab, var(--color-text-default, #f4f7fb) 86%, var(--color-text-secondary, #c6d0de) 14%);
 }

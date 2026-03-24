@@ -1,4 +1,5 @@
 import type { Messages } from './types';
+import { getWebsiteMessages } from './websiteMessages';
 
 const esES: Messages = {
   common: {
@@ -183,6 +184,7 @@ const esES: Messages = {
     viewReferences: 'Ver referencias',
     referencesTitle: 'Referencias definidas en la aplicación',
   },
+  website: getWebsiteMessages('es-ES'),
   recordingStats: {
     emptyTitle: 'No hay grabaciones disponibles',
     emptyDescription: 'Inicia y detén una grabación para inspeccionar las métricas de la simulación.',

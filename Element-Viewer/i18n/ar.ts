@@ -1,4 +1,5 @@
 import type { Messages } from './types';
+import { getWebsiteMessages } from './websiteMessages';
 
 const ar: Messages = {
   common: {
@@ -183,6 +184,7 @@ const ar: Messages = {
     viewReferences: 'عرض المراجع',
     referencesTitle: 'المراجع المعرفة في التطبيق',
   },
+  website: getWebsiteMessages('ar'),
   recordingStats: {
     emptyTitle: 'لا توجد تسجيلات متاحة',
     emptyDescription: 'ابدأ التسجيل وأوقفه لفحص مقاييس المحاكاة.',

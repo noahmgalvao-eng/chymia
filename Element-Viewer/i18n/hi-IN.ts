@@ -1,5 +1,4 @@
 import type { Messages } from './types';
-import { getWebsiteMessages } from './websiteMessages';
 
 const hiIN: Messages = {
   common: {
@@ -184,7 +183,6 @@ const hiIN: Messages = {
     viewReferences: 'संदर्भ देखें',
     referencesTitle: 'ऐप में परिभाषित संदर्भ',
   },
-  website: getWebsiteMessages('hi-IN'),
   recordingStats: {
     emptyTitle: 'कोई रिकॉर्डिंग उपलब्ध नहीं है',
     emptyDescription: 'सिमुलेशन मेट्रिक्स का निरीक्षण करने के लिए एक रिकॉर्डिंग शुरू करें और रोकें।',

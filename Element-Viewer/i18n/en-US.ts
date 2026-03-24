@@ -1,5 +1,4 @@
 import type { Messages } from './types';
-import { getWebsiteMessages } from './websiteMessages';
 
 const enUS: Messages = {
   common: {
@@ -184,7 +183,6 @@ const enUS: Messages = {
     viewReferences: 'View references',
     referencesTitle: 'References defined in the app',
   },
-  website: getWebsiteMessages('en-US'),
   recordingStats: {
     emptyTitle: 'No recordings available',
     emptyDescription: 'Start and stop a recording to inspect simulation metrics.',

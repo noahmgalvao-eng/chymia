@@ -666,13 +666,14 @@ const PeriodicTableSelector: React.FC<Props> = ({
                   <div className="periodic-reaction-list">
                     {reactionProducts.map((reaction) => {
                       const isSelected = selectedElements.some((selected) => selected.atomicNumber === reaction.atomicNumber);
-                      const reactionColor = reaction.visualDNA?.solid?.color || '#d9d9d9';
+                      const reactionTone = TONE_STYLES.outrosMetais;
+                      const reactionColor = reactionTone.base;
                       const textColor = getReadableTextColor(reactionColor);
                       const reactionStyle: ReactionPillStyle = {
                         backgroundColor: reactionColor,
                         color: textColor,
                         borderColor: 'color-mix(in oklab, #111111 24%, transparent)',
-                        '--button-ring-color': getReactionRingColor(reactionColor, textColor),
+                        '--button-ring-color': reactionTone.ring ?? getReactionRingColor(reactionColor, textColor),
                       };
 
                       return (

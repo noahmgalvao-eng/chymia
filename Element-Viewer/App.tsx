@@ -249,7 +249,7 @@ function PolicyDocumentView({
             <div className="mx-auto max-w-[72ch] space-y-8">
                 <header className="space-y-3">
                     <p className="standalone-kicker">Legal</p>
-                    <h2 className="text-3xl font-semibold tracking-tight text-default sm:text-4xl">
+                    <h2 className="standalone-document-title text-3xl font-semibold tracking-tight sm:text-4xl">
                         {document.title}
                     </h2>
                     {document.preface.map((paragraph) => (
@@ -308,7 +308,7 @@ function StandaloneSupportPanel() {
                 <div className="space-y-5">
                     <div className="space-y-3">
                         <p className="standalone-kicker">Support this project</p>
-                        <h2 className="text-3xl font-semibold tracking-tight text-default sm:text-4xl">
+                        <h2 className="standalone-page-title text-3xl font-semibold tracking-tight sm:text-4xl">
                             Help Chymia keep growing
                         </h2>
                         <p className="max-w-2xl text-sm leading-7 text-secondary sm:text-base">
@@ -405,7 +405,7 @@ function StandaloneAboutPage({
             <section className="standalone-hero mx-auto max-w-6xl rounded-[2rem] px-6 py-7 sm:px-8 sm:py-9">
                 <div className="space-y-3">
                     <p className="standalone-kicker">About us</p>
-                    <h1 className="text-3xl font-semibold tracking-tight text-default sm:text-5xl">
+                    <h1 className="standalone-page-title text-3xl font-semibold tracking-tight sm:text-5xl">
                         {heading}
                     </h1>
                     <p className="max-w-3xl text-sm leading-7 text-secondary sm:text-base">
@@ -764,13 +764,16 @@ function App() {
             }
 
             lastProcessedAiTimestampRef.current = update.timestamp;
+            let shouldSyncWidgetState = false;
 
             if (update.temperatureK !== null) {
                 setTemperature(update.temperatureK);
+                shouldSyncWidgetState = true;
             }
 
             if (update.pressurePa !== null) {
                 setPressure(update.pressurePa);
+                shouldSyncWidgetState = true;
             }
 
             if (update.elementLookups.length > 0) {
@@ -782,6 +785,7 @@ function App() {
 
                 if (novosElementos.length > 0) {
                     setSelectedElements(novosElementos);
+                    shouldSyncWidgetState = true;
                 }
             }
 
@@ -806,6 +810,11 @@ function App() {
 
                 setSelectedElements([targetReaction]);
                 setIsMultiSelect(false);
+                shouldSyncWidgetState = true;
+            }
+
+            if (shouldSyncWidgetState) {
+                scheduleSyncStateToChatGPT();
             }
         };
 
@@ -1209,7 +1218,7 @@ function App() {
 
     if (isStandaloneWebapp) {
         return (
-            <div className="standalone-shell flex min-h-screen flex-col text-default">
+            <div className="standalone-shell flex h-[100dvh] min-h-screen flex-col overflow-hidden text-default">
                 <header className="standalone-header sticky top-0 z-[90]">
                     <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
                         <button
@@ -1217,11 +1226,11 @@ function App() {
                             className="standalone-brand group flex items-center gap-3 rounded-[1.5rem] px-1.5 py-1 text-left"
                             onClick={() => navigateStandalone(STANDALONE_HOME_ROUTE)}
                         >
-                            <span className="standalone-brand-mark flex h-12 w-12 items-center justify-center overflow-hidden rounded-[1.15rem] p-1.5 sm:h-14 sm:w-14">
+                            <span className="standalone-brand-mark flex h-14 w-14 items-center justify-center overflow-hidden rounded-[1.15rem] sm:h-16 sm:w-16">
                                 <img
                                     src={chymiaLogo}
                                     alt="Chymia logo"
-                                    className="h-full w-full object-contain"
+                                    className="standalone-brand-image h-full w-full object-contain"
                                 />
                             </span>
                             <span className="flex flex-col">
@@ -1257,8 +1266,8 @@ function App() {
                         />
                     </div>
                 ) : (
-                    <div className="flex-1 min-h-0 px-4 pb-4 pt-3 sm:px-6 lg:px-8">
-                        <div className="standalone-panel relative h-full min-h-[34rem] overflow-hidden rounded-[2rem]">
+                    <div className="flex-1 min-h-0 overflow-hidden px-3 pb-3 pt-2 sm:px-5 sm:pb-5 sm:pt-3 lg:px-7">
+                        <div className="standalone-panel relative h-full min-h-0 overflow-hidden rounded-[2rem]">
                             {simulationViewport}
                         </div>
                     </div>

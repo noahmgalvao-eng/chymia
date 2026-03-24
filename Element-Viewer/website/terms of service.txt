@@ -1,6 +1,6 @@
 Terms of Service - Chymia
 
-Last Updated: [Insert Date]
+Last Updated: 2026/03/24
 
 1. Acceptance of Terms
 By accessing or using the Chymia application ("the App"), which operates as an interactive widget within the ChatGPT environment, you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use the App.

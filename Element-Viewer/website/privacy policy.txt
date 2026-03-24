@@ -1,5 +1,7 @@
 Privacy Policy - Chymia
 
+Last Updated: 2026/03/24
+
 1. Introduction
 Chymia is an interactive chemical visualization tool designed to work within the ChatGPT environment. Our priority is to provide a safe and seamless educational experience while fully respecting your privacy.
 

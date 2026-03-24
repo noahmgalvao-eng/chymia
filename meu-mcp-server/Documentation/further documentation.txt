@@ -766,9 +766,14 @@ node dist/index.js  # start the compiled MCP server
 
 ### Step 5 – Expose an HTTPS endpoint
 
-ChatGPT requires HTTPS. During development, expose localhost with any HTTPS tunnel or preview deployment URL.
+ChatGPT requires HTTPS. During development, tunnel localhost with ngrok (or similar):
 
-Use the public HTTPS URL when creating a connector in ChatGPT developer mode. For production, deploy to a low-latency HTTPS host (Cloudflare Workers, Fly.io, Vercel, AWS, etc.).
+```bash
+ngrok http <port>
+# Forwarding: https://<subdomain>.ngrok.app -> http://127.0.0.1:<port>
+```
+
+Use the ngrok URL when creating a connector in ChatGPT developer mode. For production, deploy to a low-latency HTTPS host (Cloudflare Workers, Fly.io, Vercel, AWS, etc.).
 
 ## Example
 
@@ -982,9 +987,14 @@ Regardless of platform, make sure `/mcp` stays responsive, supports streaming re
 
 ## Local development
 
-During development you can expose your local server to ChatGPT using any HTTPS tunnel or preview deployment URL.
+During development you can expose your local server to ChatGPT using a tunnel such as ngrok:
 
-Keep the public HTTPS endpoint running while you iterate on your connector. When you change code:
+```bash
+ngrok http 2091
+# https://<subdomain>.ngrok.app/mcp → http://127.0.0.1:2091/mcp
+```
+
+Keep the tunnel running while you iterate on your connector. When you change code:
 
 1. Rebuild the component bundle (`npm run build`).
 2. Restart your MCP server.
@@ -1033,12 +1043,12 @@ As of November 13th, 2025, ChatGPT Apps are supported on all plans, including
 
 Once you have developer mode enabled, you can create a connector for your app in ChatGPT.
 
-1. Ensure your MCP server is reachable over HTTPS (for local development, you can expose a local server to the public internet via a tunnel or preview deployment URL).
+1. Ensure your MCP server is reachable over HTTPS (for local development, you can expose a local server to the public internet via a tool such as [ngrok](https://ngrok.com/) or [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)).
 2. In ChatGPT, navigate to **Settings → Connectors → Create**.
 3. Provide the metadata for your connector:
    - **Connector name** – a user-facing title such as _Kanban board_.
    - **Description** – explain what the connector does and when to use it. The model uses this text during discovery.
-   - **Connector URL** – the public `/mcp` endpoint of your server (for example `https://your-public-host.example.com/mcp`).
+   - **Connector URL** – the public `/mcp` endpoint of your server (for example `https://abc123.ngrok.app/mcp`).
 4. Click **Create**. If the connection succeeds you will see a list of the tools your server advertises. If it fails, refer to the [Testing](/apps-sdk/deploy/testing) guide to debug your app with MCP Inspector or the API Playground.
 
 ## Try the app
@@ -1090,12 +1100,12 @@ As of November 13th, 2025, ChatGPT Apps are supported on all plans, including
 
 Once you have developer mode enabled, you can create a connector for your app in ChatGPT.
 
-1. Ensure your MCP server is reachable over HTTPS (for local development, you can expose a local server to the public internet via a tunnel or preview deployment URL).
+1. Ensure your MCP server is reachable over HTTPS (for local development, you can expose a local server to the public internet via a tool such as [ngrok](https://ngrok.com/) or [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)).
 2. In ChatGPT, navigate to **Settings → Connectors → Create**.
 3. Provide the metadata for your connector:
    - **Connector name** – a user-facing title such as _Kanban board_.
    - **Description** – explain what the connector does and when to use it. The model uses this text during discovery.
-   - **Connector URL** – the public `/mcp` endpoint of your server (for example `https://your-public-host.example.com/mcp`).
+   - **Connector URL** – the public `/mcp` endpoint of your server (for example `https://abc123.ngrok.app/mcp`).
 4. Click **Create**. If the connection succeeds you will see a list of the tools your server advertises. If it fails, refer to the [Testing](/apps-sdk/deploy/testing) guide to debug your app with MCP Inspector or the API Playground.
 
 ## Try the app

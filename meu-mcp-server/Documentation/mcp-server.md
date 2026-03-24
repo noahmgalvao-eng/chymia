@@ -129,13 +129,11 @@ server.registerTool(
 | `GET` | `/` | Health check ("Element Viewer MCP Server Running") |
 | `POST/GET/DELETE` | `/mcp` | Handler MCP principal (via `app.all`) |
 
-**Headers MCP configurados:**
-- `Access-Control-Allow-Origin: *` apenas em `/mcp`
+**Headers CORS configurados:**
+- `Access-Control-Allow-Origin: *`
 - `Access-Control-Allow-Methods: POST, GET, DELETE, OPTIONS`
 - `Access-Control-Allow-Headers: content-type, mcp-session-id`
 - `Access-Control-Expose-Headers: Mcp-Session-Id`
-- `Cache-Control: no-store`
-- `X-Content-Type-Options: nosniff`
 
 > **Nota:** O middleware `express.json()` **NÃƒO** Ã© utilizado. O SDK do MCP lÃª o body stream diretamente â€” se o Express parsear primeiro, o stream Ã© consumido e o SDK recebe um body vazio (erro 400).
 

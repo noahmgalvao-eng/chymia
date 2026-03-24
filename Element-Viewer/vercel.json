@@ -5,19 +5,11 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "frame-ancestors https://chatgpt.com https://chat.openai.com;"
+          "value": "frame-ancestors * https://chatgpt.com https://chat.openai.com;"
         },
         {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        },
-        {
-          "key": "Referrer-Policy",
-          "value": "strict-origin-when-cross-origin"
-        },
-        {
-          "key": "Permissions-Policy",
-          "value": "camera=(), microphone=(), geolocation=(), payment=(), usb=(), accelerometer=(), gyroscope=()"
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
         }
       ]
     }

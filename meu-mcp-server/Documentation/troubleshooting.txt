@@ -30,7 +30,7 @@ When something goes wrong—components failing to render, discovery missing prom
 
 ## Deployment problems
 
-- **HTTPS tunnel times out** – restart the tunnel and verify your local server is running before sharing the URL. For production, use a stable hosting provider with health checks.
+- **Ngrok tunnel times out** – restart the tunnel and verify your local server is running before sharing the URL. For production, use a stable hosting provider with health checks.
 - **Streaming breaks behind proxies** – ensure your load balancer or CDN allows server-sent events or streaming HTTP responses without buffering.
 
 ## When to escalate

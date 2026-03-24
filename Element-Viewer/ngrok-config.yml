@@ -1,0 +1,10 @@
+version: "2"
+authtoken: 38rBa0cwE60tJdIiDMLLa46UeCt_3UUj68RF33Yo5DyhMuqGY
+tunnels:
+  vite-app:
+    proto: http
+    addr: 3000
+  backend-server:
+    proto: http
+    addr: 8080
+    hostname: lissome-darcy-largest.ngrok-free.dev

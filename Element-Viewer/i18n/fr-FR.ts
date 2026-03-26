@@ -29,7 +29,7 @@ const frFR: Messages = {
       itemOne: 'Demandez les éléments, la température et la pression de votre choix.',
       itemOneExample: 'Ex. : "Montre-moi maintenant le carbone, le sodium et l\'hélium à 5000 K et 2 atm"',
       itemTwo: 'Demandez des combinaisons d\'éléments intéressantes à comparer.',
-      itemTwoExample: 'Ex. : "Montre-moi des éléments intéressants à observer ensemble !"',
+      itemTwoExample: 'Ex. : "Montre à l\'écran des éléments intéressants à observer ensemble !"',
       itemThree: 'Lorsque 2 éléments ou plus sont sélectionnés, tapez "Réagir" dans le chat et admirez le résultat.',
       itemFour: 'Demandez une explication de ce qui se passe dans la simulation actuelle.',
       footer: 'Utilisez l\'application en mode plein écran pour une meilleure expérience de conversation.',

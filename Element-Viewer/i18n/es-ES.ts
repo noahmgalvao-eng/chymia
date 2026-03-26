@@ -29,7 +29,7 @@ const esES: Messages = {
       itemOne: 'Pide los elementos, temperatura y presión que quieras.',
       itemOneExample: 'Ej: "Ahora muéstrame carbono, sodio y helio a 5000 K y 2 atm"',
       itemTwo: 'Pide combinaciones interesantes de elementos para comparar.',
-      itemTwoExample: 'Ej: "¡Muéstrame elementos interesantes para observar juntos!"',
+      itemTwoExample: 'Ej: "¡Muestra en la pantalla elementos interesantes para observar juntos!"',
       itemThree: 'Cuando haya 2 o más elementos seleccionados, escribe "Reaccionar" en el chat y observa la magia.',
       itemFour: 'Pide una explicación de lo que está ocurriendo en la simulación actual.',
       footer: 'Usa la aplicación en pantalla completa para una mejor experiencia de conversación.',

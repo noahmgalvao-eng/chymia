@@ -29,7 +29,7 @@ const ptBR: Messages = {
       itemOne: 'Peça quaisquer elementos, temperatura e pressão que você quiser.',
       itemOneExample: 'Ex: "Agora quero ver carbono, sódio e hélio a 5000 K e 2 atm"',
       itemTwo: 'Peça combinações interessantes de elementos para comparar.',
-      itemTwoExample: 'Ex: "Mostre elementos interessantes para observar juntos!"',
+      itemTwoExample: 'Ex: "Mostre na tela elementos interessantes para observar juntos!"',
       itemThree: 'Quando 2 ou mais elementos estiverem selecionados, digite "Reagir" no chat e veja a mágica acontecer.',
       itemFour: 'Peça uma explicação do que está acontecendo na simulação atual.',
       footer: 'Use o app em modo fullscreen para uma experiência conversacional melhor.',

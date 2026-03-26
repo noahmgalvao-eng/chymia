@@ -741,14 +741,14 @@ const PeriodicTableSelector: React.FC<Props> = ({
                     >
                       {el.atomicNumber}
                     </span>
-                    <span className="periodic-cell-content pointer-events-none">
-                      <span className="text-[10px] font-semibold leading-none sm:text-2xs">{el.symbol}</span>
-                      {isMultiSelect && isSelected && (
-                        <span className="periodic-selection-index bg-primary text-white">
-                          {selectionIndex + 1}
-                        </span>
-                      )}
-                    </span>
+                    <span className="text-[10px] font-semibold leading-none sm:text-2xs">{el.symbol}</span>
+                    {isMultiSelect && isSelected && (
+                      <span
+                        className="pointer-events-none absolute left-1/2 top-[calc(50%+0.45rem)] -translate-x-1/2 text-[8px] font-bold leading-none text-[#111111] sm:right-0.5 sm:left-auto sm:top-0.5 sm:flex sm:size-3.5 sm:translate-x-0 sm:items-center sm:justify-center sm:rounded-full sm:bg-primary sm:text-white"
+                      >
+                        {selectionIndex + 1}
+                      </span>
+                    )}
                   </Button>
                 );
               })}

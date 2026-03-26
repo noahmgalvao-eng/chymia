@@ -15,6 +15,57 @@ const __dirname = path.dirname(__filename);
 const HTML_INPUT = path.resolve(__dirname, "../../Element-Viewer/dist/index.html");
 const JS_OUTPUT = path.resolve(__dirname, "../api/html-content.js");
 
+const SECRET_PATTERNS = [
+  {
+    name: "OpenAI API key",
+    pattern: /\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}\b/g,
+  },
+  {
+    name: "AWS access key",
+    pattern: /\bAKIA[0-9A-Z]{16}\b/g,
+  },
+  {
+    name: "GitHub token",
+    pattern: /\b(?:ghp|github_pat)_[A-Za-z0-9_]{20,}\b/g,
+  },
+  {
+    name: "Google API key",
+    pattern: /\bAIza[0-9A-Za-z\\-_]{35}\b/g,
+  },
+  {
+    name: "Private key block",
+    pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----/g,
+  },
+  {
+    name: "Slack token",
+    pattern: /\bxox[baprs]-[A-Za-z0-9-]{10,}\b/g,
+  },
+];
+
+function assertNoEmbeddedSecrets(content) {
+  const matches = SECRET_PATTERNS.flatMap(({ name, pattern }) => {
+    const found = content.match(pattern);
+    if (!found) {
+      return [];
+    }
+
+    return found.slice(0, 3).map((value) => ({
+      name,
+      value,
+    }));
+  });
+
+  if (matches.length === 0) {
+    return;
+  }
+
+  console.error("[embed-html] ERROR: possible secret material found in generated widget HTML.");
+  for (const match of matches) {
+    console.error(`[embed-html] - ${match.name}: ${match.value.slice(0, 12)}...`);
+  }
+  process.exit(1);
+}
+
 console.log(`[embed-html] Lendo: ${HTML_INPUT}`);
 
 if (!fs.existsSync(HTML_INPUT)) {
@@ -24,6 +75,7 @@ if (!fs.existsSync(HTML_INPUT)) {
 }
 
 const htmlRaw = fs.readFileSync(HTML_INPUT, "utf-8");
+assertNoEmbeddedSecrets(htmlRaw);
 const sourceHash = crypto.createHash("sha256").update(htmlRaw).digest("hex");
 
 console.log(`[embed-html] HTML lido: ${htmlRaw.length} caracteres`);

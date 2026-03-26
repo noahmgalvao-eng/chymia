@@ -3,7 +3,7 @@ import { htmlContent } from '../../api/html-content.js';
 import { createWidgetMeta } from '../config/widget.js';
 import { registerElementViewerTools } from './tools.js';
 
-export function createElementViewerServer() {
+export function createElementViewerServer({ requestOrigin = null } = {}) {
   const server = new McpServer({
     name: 'element-viewer',
     version: '1.0.0',
@@ -16,7 +16,7 @@ export function createElementViewerServer() {
     async () => ({
       contents: [
         {
-          _meta: createWidgetMeta(),
+          _meta: createWidgetMeta({ requestOrigin }),
           mimeType: 'text/html+skybridge',
           text: htmlContent,
           uri: 'ui://widget/element-viewer.html',

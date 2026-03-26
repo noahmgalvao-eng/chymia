@@ -171,6 +171,10 @@ type PreviewAvatarStyle = React.CSSProperties & {
 };
 
 type ReactionPillStyle = React.CSSProperties & {
+  '--button-background-color'?: string;
+  '--button-background-color-hover'?: string;
+  '--button-background-color-active'?: string;
+  '--button-text-color'?: string;
   '--button-ring-color'?: string;
 };
 
@@ -666,13 +670,18 @@ const PeriodicTableSelector: React.FC<Props> = ({
                   <div className="periodic-reaction-list">
                     {reactionProducts.map((reaction) => {
                       const isSelected = selectedElements.some((selected) => selected.atomicNumber === reaction.atomicNumber);
-                      const reactionColor = reaction.visualDNA?.solid?.color || '#d9d9d9';
+                      const reactionTone = TONE_STYLES.outrosMetais;
+                      const reactionColor = reactionTone.base;
                       const textColor = getReadableTextColor(reactionColor);
                       const reactionStyle: ReactionPillStyle = {
                         backgroundColor: reactionColor,
+                        '--button-background-color': reactionTone.base,
+                        '--button-background-color-hover': reactionTone.hover,
+                        '--button-background-color-active': reactionTone.active,
+                        '--button-text-color': textColor,
                         color: textColor,
                         borderColor: 'color-mix(in oklab, #111111 24%, transparent)',
-                        '--button-ring-color': getReactionRingColor(reactionColor, textColor),
+                        '--button-ring-color': reactionTone.ring ?? getReactionRingColor(reactionColor, textColor),
                       };
 
                       return (

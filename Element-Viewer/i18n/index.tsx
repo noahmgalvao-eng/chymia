@@ -1,8 +1,11 @@
-import React, { createContext, useContext, useEffect, useMemo } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useChatGPTGlobal } from '../hooks/useChatGPT';
+import { useHostEnvironment } from '../infrastructure/browser/hostEnvironment';
 import { SUPPORTED_LOCALES, resolveSupportedLocale } from './config';
 import { getMessagesForLocale } from './resources';
 import type { Messages, SupportedLocale } from './types';
+
+const STANDALONE_LOCALE_STORAGE_KEY = 'chymia-standalone-locale';
 
 const MESSAGES = Object.fromEntries(
   SUPPORTED_LOCALES.map((locale) => [locale, getMessagesForLocale(locale)]),
@@ -12,18 +15,59 @@ interface I18nContextValue {
   locale: SupportedLocale;
   messages: Messages;
   formatNumber: (value: number, options?: Intl.NumberFormatOptions) => string;
+  setLocale: (locale: SupportedLocale) => void;
+  availableLocales: SupportedLocale[];
 }
 
 const I18nContext = createContext<I18nContextValue | null>(null);
 
+const getStoredStandaloneLocale = (): string | null => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    return window.localStorage.getItem(STANDALONE_LOCALE_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+};
+
 export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const openAiLocale = useChatGPTGlobal('locale');
+  const hostEnvironment = useHostEnvironment();
+  const [standaloneLocale, setStandaloneLocaleState] = useState<SupportedLocale>(() =>
+    resolveSupportedLocale(
+      getStoredStandaloneLocale(),
+      'en-US',
+    ),
+  );
   const documentLocale = typeof document !== 'undefined' ? document.documentElement.lang : null;
-  const locale = resolveSupportedLocale(openAiLocale, documentLocale);
+  const browserLocale = typeof navigator !== 'undefined' ? navigator.language : null;
+  const locale = hostEnvironment === 'standalone'
+    ? resolveSupportedLocale(standaloneLocale, 'en-US')
+    : resolveSupportedLocale(openAiLocale, documentLocale, browserLocale);
+
+  const setLocale = useCallback((nextLocale: SupportedLocale) => {
+    const resolvedLocale = resolveSupportedLocale(nextLocale);
+
+    if (hostEnvironment === 'standalone' && typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem(STANDALONE_LOCALE_STORAGE_KEY, resolvedLocale);
+      } catch {
+        // Ignore storage failures and keep the in-memory locale.
+      }
+    }
+
+    setStandaloneLocaleState((currentLocale) =>
+      currentLocale === resolvedLocale ? currentLocale : resolvedLocale,
+    );
+  }, [hostEnvironment]);
 
   useEffect(() => {
     if (typeof document !== 'undefined') {
       document.documentElement.lang = locale;
+      document.documentElement.dir = locale === 'ar' ? 'rtl' : 'ltr';
     }
   }, [locale]);
 
@@ -31,7 +75,9 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
     locale,
     messages: MESSAGES[locale],
     formatNumber: (number, options) => number.toLocaleString(locale, options),
-  }), [locale]);
+    setLocale,
+    availableLocales: SUPPORTED_LOCALES,
+  }), [locale, setLocale]);
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 };

@@ -186,6 +186,56 @@ export interface Messages {
     viewReferences: string;
     referencesTitle: string;
   };
+  website: {
+    brandTagline: string;
+    aboutButton: string;
+    logoAlt: string;
+    qrAlt: string;
+    metaTitles: {
+      home: string;
+      support: string;
+      terms: string;
+      privacy: string;
+      contact: string;
+    };
+    about: {
+      kicker: string;
+      legalKicker: string;
+      supportNav: string;
+      termsNav: string;
+      privacyNav: string;
+      contactNav: string;
+      supportHeading: string;
+      supportPageDescription: string;
+      termsHeading: string;
+      termsPageDescription: string;
+      privacyHeading: string;
+      privacyPageDescription: string;
+      contactHeading: string;
+      contactPageDescription: string;
+      supportTitle: string;
+      supportDescription: string;
+      paypalButton: string;
+      githubButton: string;
+      supportDirectTitle: string;
+      supportDirectDescription: string;
+      supportOpenTitle: string;
+      supportOpenDescription: string;
+      supportQrLabel: string;
+      supportQrDescription: string;
+      contactTitle: string;
+      contactDescription: string;
+      contactEmailLabel: string;
+    };
+    footer: {
+      rightsReserved: (year: number) => string;
+      terms: string;
+      privacy: string;
+      contact: string;
+      language: string;
+    };
+    languageNames: Record<SupportedLocale, string>;
+  };
   recordingStats: {
     emptyTitle: string;
     emptyDescription: string;

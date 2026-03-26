@@ -1,0 +1,39 @@
+Terms of Service - Chymia
+
+Last Updated: 2026/03/24
+
+1. Acceptance of Terms
+By accessing or using the Chymia application ("the App"), which operates as an interactive widget within the ChatGPT environment, you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use the App.
+
+2. Description of Service
+Chymia is an interactive, educational simulation tool designed to visualize states of matter, chemical elements, and thermodynamic properties. The App operates as a stateless visualization tool and does not require user registration or authentication.
+
+3. Educational Purposes and Disclaimer
+The simulations, data, and visual representations provided by Chymia are intended for educational and informational purposes only. While we strive for accuracy, the App is not a substitute for professional scientific software, and we make no guarantees regarding the absolute precision of the thermodynamic calculations or chemical behaviors displayed.
+
+4. Privacy and Data Collection
+Your privacy is important to us. The App does not collect Personally Identifiable Information (PII) or store the content of your ChatGPT prompts. We only collect anonymous telemetry data (such as UI clicks and session IDs) via PostHog to improve the user experience and fix technical issues. For more details, please review our [Link to Privacy Policy].
+
+5. Acceptable Use
+You agree to use the App only for lawful purposes and in accordance with the usage policies of the platform hosting the widget (ChatGPT / OpenAI). You may not:
+
+Attempt to reverse-engineer, decompile, or disrupt the App's normal functioning.
+
+Use the App in any way that could disable, overburden, or impair the service.
+
+Attempt to exploit the App to bypass ChatGPT's standard safety and security protocols.
+
+6. Intellectual Property
+All content, design, graphics, and interactive features within the Chymia widget are the intellectual property of the developer, unless otherwise stated (such as open-source libraries or public domain scientific data). Using the App does not grant you ownership of any intellectual property rights in our service.
+
+7. Disclaimer of Warranties
+The App is provided on an "AS IS" and "AS AVAILABLE" basis. We disclaim all warranties of any kind, whether express or implied, including, but not limited to, the implied warranties of merchantability, fitness for a particular purpose, and non-infringement. We do not guarantee that the App will be error-free or uninterrupted.
+
+8. Limitation of Liability
+To the fullest extent permitted by law, the developer of Chymia shall not be liable for any indirect, incidental, special, consequential, or punitive damages, or any loss of profits or revenues, whether incurred directly or indirectly, resulting from your use of or inability to use the App.
+
+9. Modifications to the Terms
+We reserve the right to modify or replace these Terms of Service at any time. Any changes will be effective immediately upon being published or updated within the App's repository or documentation. Continued use of the App following any changes constitutes your acceptance of the new terms.
+
+10. Contact Information
+If you have any questions, concerns, or feedback regarding these Terms of Service, please contact us through the official project repository or the support channels provided.

@@ -472,22 +472,16 @@ This will open a browser window with the MCP Inspector interface. You can use th
 
 ### Expose your server to the public internet
 
-For ChatGPT to access your server during development, you need to expose it to the public internet. You can use a tool such as [ngrok](https://ngrok.com/) to open a tunnel to your local server.
+For ChatGPT to access your server during development, you need to expose it to the public internet over HTTPS. You can use any HTTPS tunnel or a deployed preview URL for your local server.
 
-```bash
-ngrok http <port>
-```
-
-This will give you a public URL like `https://<subdomain>.ngrok.app` that you can use to access your server from ChatGPT.
-
-When you add you connector, provide the public URL with the `/mcp` path (e.g. `https://<subdomain>.ngrok.app/mcp`).
+When you add your connector, provide the public HTTPS URL with the `/mcp` path (e.g. `https://your-public-host.example.com/mcp`).
 
 ## Add your app to ChatGPT
 
 Once you have your MCP server and web component working locally, you can add your app to ChatGPT with the following steps:
 
 1. Enable [developer mode](https://platform.openai.com/docs/guides/developer-mode) under **Settings → Apps & Connectors → Advanced settings** in ChatGPT.
-2. Click the **Create** button to add a connector under **Settings → Connectors** and paste the HTTPS + `/mcp` URL from your tunnel or deployment (e.g. `https://<subdomain>.ngrok.app/mcp`).
+2. Click the **Create** button to add a connector under **Settings → Connectors** and paste the HTTPS + `/mcp` URL from your tunnel or deployment (e.g. `https://your-public-host.example.com/mcp`).
 3. Name the connector, provide a short description and click **Create**.
 
 <div style={{ width: "50%", margin: "0 auto", display: "block" }}>

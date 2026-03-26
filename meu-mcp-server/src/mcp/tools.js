@@ -35,6 +35,8 @@ export function registerElementViewerTools(server) {
         'openai/outputTemplate': 'ui://widget/element-viewer.html',
         'openai/widgetAccessible': true,
         readOnlyHint: true,
+        openWorldHint: false,
+        destructiveHint: false
       },
     },
     async (args) => ({
@@ -112,6 +114,8 @@ export function registerElementViewerTools(server) {
         'openai/outputTemplate': 'ui://widget/element-viewer.html',
         'openai/widgetAccessible': true,
         readOnlyHint: true,
+        openWorldHint: false,
+        destructiveHint: false
       },
     },
     async (args) => ({

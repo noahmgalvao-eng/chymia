@@ -7,6 +7,7 @@ import {
   writeMcpPreflight,
   writeMcpMethodNotAllowed,
 } from './policy.js';
+import { getRequestOrigin } from '../config/widget.js';
 import { createElementViewerServer } from '../mcp/server.js';
 
 const app = express();
@@ -28,7 +29,9 @@ app.all('/mcp', async (req, res) => {
     return;
   }
 
-  const server = createElementViewerServer();
+  const server = createElementViewerServer({
+    requestOrigin: getRequestOrigin(req),
+  });
   const transport = new StreamableHTTPServerTransport({
     enableJsonResponse: true,
     sessionIdGenerator: undefined,

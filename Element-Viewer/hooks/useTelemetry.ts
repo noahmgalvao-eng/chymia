@@ -1,4 +1,5 @@
 import { usePostHog } from '@posthog/react';
+import { hasInitializedPostHog } from '../infrastructure/posthog';
 
 export type TelemetryEventName =
   | 'ELEMENT_SELECT'
@@ -20,6 +21,10 @@ export function useTelemetry() {
   const posthog = usePostHog();
 
   const logEvent = (event: TelemetryEventName, data?: TelemetryData) => {
+    if (!hasInitializedPostHog()) {
+      return;
+    }
+
     try {
       posthog?.capture(event, data);
     } catch {
@@ -29,13 +34,15 @@ export function useTelemetry() {
 
   let sessionId = SESSION_ID_PLACEHOLDER;
 
-  try {
-    const currentSessionId = posthog?.get_session_id?.();
-    if (typeof currentSessionId === 'string' && currentSessionId.length > 0) {
-      sessionId = currentSessionId;
+  if (hasInitializedPostHog()) {
+    try {
+      const currentSessionId = posthog?.get_session_id?.();
+      if (typeof currentSessionId === 'string' && currentSessionId.length > 0) {
+        sessionId = currentSessionId;
+      }
+    } catch {
+      sessionId = SESSION_ID_PLACEHOLDER;
     }
-  } catch {
-    sessionId = SESSION_ID_PLACEHOLDER;
   }
 
   return {

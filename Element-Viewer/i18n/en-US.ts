@@ -30,7 +30,7 @@ const enUS: Messages = {
       itemOneExample: 'Ex: "Now show me carbon, sodium, and helium at 5000 K and 2 atm"',
       itemTwo: 'Ask for interesting combinations of elements to compare.',
       itemTwoExample: 'Ex: "Show me on screen interesting elements to observe together!"',
-      itemThree: 'When 2 or more elements are selected, type "React" in the chat and watch the magic happen.',
+      itemThree: 'When 2 or more elements are selected, type "Make these elements react" in the chat and watch the magic happen.',
       itemFour: 'Ask for an explanation of what is happening in the current simulation.',
       footer: 'Use the app in fullscreen mode for a better conversational experience.',
     },

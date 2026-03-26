@@ -75,6 +75,7 @@ const SUPERSCRIPT_MAP: Record<string, string> = {
   '9': '\u2079',
 };
 
+const MIN_ACTION_PRESSURE_PA = 1e-9;
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const clampActionTemperature = (value: number) => clamp(value, 1, 6000);
 
@@ -321,7 +322,9 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
     1,
     actionSublimationPoint || physicsState.sublimationPointCurrent || triplePoint?.tempK || actionMeltingPoint,
   );
-  const sublimationPressure = triplePoint ? Math.max(1, triplePoint.pressurePa * 0.8) : 1;
+  const sublimationPressure = triplePoint
+    ? Math.max(MIN_ACTION_PRESSURE_PA, triplePoint.pressurePa * 0.8)
+    : MIN_ACTION_PRESSURE_PA;
   const rawSublimationTargetTemp = isGasLike ? Math.max(1, sublimationTemp - 40) : sublimationTemp + 40;
   const supercriticalTargetTemp = criticalPoint ? criticalPoint.tempK + 25 : physicsState.temperature;
   const tripleTargetTemp = triplePoint?.tempK ?? physicsState.temperature;
@@ -358,7 +361,7 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
     direction: 'up' | 'down',
     matcher: (state: MatterState) => boolean,
   ): number => {
-    const boundedPressure = Math.max(1e-9, pressureTarget);
+    const boundedPressure = Math.max(MIN_ACTION_PRESSURE_PA, pressureTarget);
     const start = clampActionTemperature(seedTemperature);
 
     const isMatch = (temp: number) => matcher(predictMatterState(element, temp, boundedPressure).state);

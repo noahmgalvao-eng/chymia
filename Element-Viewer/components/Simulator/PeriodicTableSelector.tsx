@@ -678,7 +678,8 @@ const PeriodicTableSelector: React.FC<Props> = ({
                       return (
                         <Button
                           key={reaction.atomicNumber}
-                          color="secondar                          variant="solid"
+                          color="secondary"
+                          variant="solid"
                           size="sm"
                           onClick={() => onSelectReactionProduct(reaction)}
                           className={`periodic-reaction-pill relative z-[5] text-xs font-semibold ${isSelected ? 'periodic-reaction-pill-selected' : ''}`}

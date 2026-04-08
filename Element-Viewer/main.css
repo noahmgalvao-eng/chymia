@@ -126,22 +126,19 @@
 .periodic-grid {
   position: relative;
   display: grid;
-  min-width: var(--periodic-grid-min-width, 31rem);
-  width: max(100%, var(--periodic-grid-min-width, 31rem));
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
   box-sizing: border-box;
   grid-template-columns: repeat(18, minmax(0, 1fr));
   grid-template-rows: repeat(10, minmax(0, auto));
-  gap: 1px;
+  gap: clamp(1px, 0.18vw, 2px);
 }
 
 .periodic-grid-scroll {
   width: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding-bottom: 0.25rem;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-x: contain;
-  scrollbar-width: thin;
+  overflow: hidden;
+  padding-bottom: 0;
 }
 
 .periodic-grid-scroll::-webkit-scrollbar {
@@ -180,8 +177,8 @@
 }
 
 .periodic-cell {
-  --periodic-cell-inset: clamp(2px, 0.22rem, 4px);
-  --button-radius: 0.58rem;
+  --periodic-cell-inset: clamp(1px, 0.18rem, 4px);
+  --button-radius: clamp(0.28rem, 1.1vw, 0.58rem);
   --selection-ring-border-width: 3px;
   --selection-ring-inner-width: 2px;
   --selection-ring-inner-color: #ffffff;
@@ -212,40 +209,48 @@
   inset-block-start: var(--periodic-cell-inset);
   inset-inline-start: var(--periodic-cell-inset);
   max-width: calc(100% - (var(--periodic-cell-inset) * 2));
-  font-size: clamp(0.38rem, 0.34rem + 0.15vw, 0.52rem);
+  font-size: clamp(0.22rem, 0.14rem + 0.45vw, 0.52rem);
   line-height: 1;
   white-space: nowrap;
+  z-index: 1;
 }
 
 .periodic-cell-symbol {
+  position: absolute;
+  inset-inline-start: 50%;
+  inset-block-start: 58%;
+  transform: translate(-50%, -50%);
   display: block;
-  max-width: calc(100% - (var(--periodic-cell-inset) * 2));
-  padding-inline: calc(var(--periodic-cell-inset) * 1.25);
-  font-size: clamp(0.58rem, 0.5rem + 0.22vw, 0.84rem);
+  max-width: calc(100% - (var(--periodic-cell-inset) * 3));
+  padding-inline: calc(var(--periodic-cell-inset) * 1.1);
+  font-size: clamp(0.34rem, 0.18rem + 0.8vw, 0.84rem);
   font-weight: 700;
-  line-height: 1;
+  line-height: 0.95;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  z-index: 1;
 }
 
 .periodic-cell-index {
   position: absolute;
-  inset-block-start: var(--periodic-cell-inset);
+  inset-block-start: auto;
+  inset-block-end: var(--periodic-cell-inset);
   inset-inline-end: var(--periodic-cell-inset);
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 0.82rem;
-  height: 0.82rem;
-  padding: 0 0.12rem;
+  min-width: clamp(0.42rem, 0.24rem + 0.9vw, 0.82rem);
+  height: clamp(0.42rem, 0.24rem + 0.9vw, 0.82rem);
+  padding: 0 0.08rem;
   border-radius: 999px;
   background: var(--color-background-info-solid, #2899ff);
   color: #ffffff;
-  font-size: clamp(0.38rem, 0.34rem + 0.15vw, 0.5rem);
+  font-size: clamp(0.22rem, 0.14rem + 0.45vw, 0.5rem);
   font-weight: 700;
   line-height: 1;
   box-shadow: 0 1px 3px color-mix(in oklab, #0f172a 18%, transparent);
+  z-index: 1;
 }
 
 .periodic-cell::after,
@@ -343,10 +348,47 @@
   }
 }
 
+@media (max-width: 480px) {
+  .periodic-reaction-cluster {
+    left: 18%;
+    width: 48%;
+    gap: 0.15rem;
+  }
+
+  .periodic-reaction-list {
+    gap: 0.18rem;
+    max-height: 2.8rem;
+  }
+
+  .periodic-cell-symbol {
+    inset-block-start: 60%;
+  }
+}
+
 @media (max-width: 380px) {
   .periodic-selection-control {
     --segmented-control-font-size: 0.75rem;
     --segmented-control-option-gutter: 0.45rem;
+  }
+
+  .periodic-cell {
+    --periodic-cell-inset: 1px;
+  }
+
+  .periodic-cell-number {
+    font-size: 0.2rem;
+  }
+
+  .periodic-cell-symbol {
+    inset-block-start: 61%;
+    font-size: 0.32rem;
+  }
+
+  .periodic-cell-index {
+    min-width: 0.4rem;
+    height: 0.4rem;
+    font-size: 0.2rem;
+    padding: 0 0.06rem;
   }
 }
 

@@ -263,9 +263,11 @@ const PeriodicTableSelector: React.FC<Props> = ({
   const activePointerId = useRef<number | null>(null);
   const activeSliderRef = useRef<'temperature' | 'pressure' | null>(null);
   const dragHandleRef = useRef<HTMLDivElement | null>(null);
+  const sheetSurfaceRef = useRef<HTMLDivElement | null>(null);
   const dragRafRef = useRef<number | null>(null);
   const pendingDragOffset = useRef(0);
   const latestDragOffset = useRef(0);
+  const [closedTranslateY, setClosedTranslateY] = useState(720);
 
   const visibleElements = useMemo(() => getLocalizedElements(locale), [locale]);
 
@@ -461,29 +463,46 @@ const PeriodicTableSelector: React.FC<Props> = ({
     releaseActiveSlider();
   }, [isOpen, releaseActiveSlider, resetDragState]);
 
-  if (!isOpen) {
-    return null;
-  }
+  useEffect(() => {
+    const node = sheetSurfaceRef.current;
+    if (!node) return;
+
+    const measure = () => {
+      const next = Math.ceil(node.getBoundingClientRect().height + 32);
+      setClosedTranslateY((previous) => (Math.abs(previous - next) < 1 ? previous : next));
+    };
+
+    measure();
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(() => measure());
+      observer.observe(node);
+      return () => observer.disconnect();
+    }
+
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
 
   return (
     <>
-      <div className="fixed inset-0 z-[110] bg-black/30" onClick={() => onOpenChange(false)} aria-hidden="true" />
+      {isOpen && <div className="fixed inset-0 z-[110] bg-black/30" onClick={() => onOpenChange(false)} aria-hidden="true" />}
 
       <section
-        className="fixed inset-x-0 z-[120] px-2 pb-0 sm:px-3"
+        className="absolute inset-x-0 z-[120] px-0 pb-0"
         style={{
           bottom: `${bottomDockOffset}px`,
-          transform: `translateY(${dragOffset}px)`,
+          transform: `translateY(${isOpen ? dragOffset : closedTranslateY}px)`,
           transition: isDraggingSheet ? 'none' : 'transform 200ms cubic-bezier(0.22, 1, 0.36, 1)',
+          pointerEvents: isOpen ? 'auto' : 'none',
           willChange: isDraggingSheet || isSliderActive ? 'transform, opacity' : undefined,
         }}
-        role="dialog"
-        aria-modal="true"
       >
         <div
+          ref={sheetSurfaceRef}
           className={`periodic-sheet mx-auto w-full max-w-5xl rounded-t-3xl sm:p-2 transition-opacity duration-200 ease-out ${isDraggingSheet || isSliderActive ? 'periodic-sheet-interacting' : ''} ${isSliderActive ? 'border-transparent bg-transparent shadow-none' : 'periodic-sheet-surface border border-default shadow-2xl'}`}
           style={{
-            maxHeight: `calc(100dvh - ${Math.max(bottomDockOffset, 0) + 8}px)`,
+            maxHeight: `min(calc(100% - ${Math.max(bottomDockOffset, 0)}px), calc(100dvh - ${Math.max(bottomDockOffset, 0) + 8}px))`,
             overflowY: 'auto',
             overscrollBehavior: 'contain',
           }}

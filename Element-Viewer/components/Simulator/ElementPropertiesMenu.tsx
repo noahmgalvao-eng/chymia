@@ -80,6 +80,8 @@ const clamp = (value: number, min: number, max: number) => Math.max(min, Math.mi
 const clampActionTemperature = (value: number) => clamp(value, 1, 6000);
 const PANEL_SAFE_MARGIN_PX = 12;
 const PANEL_MAX_WIDTH_PX = 432;
+const MOBILE_PANEL_SAFE_MARGIN_PX = 8;
+const MOBILE_PANEL_VERTICAL_GAP_PX = 8;
 
 const getViewportMetrics = () => {
   if (typeof window === 'undefined') {
@@ -98,6 +100,24 @@ const getViewportMetrics = () => {
     offsetLeft: visualViewport?.offsetLeft ?? 0,
     offsetTop: visualViewport?.offsetTop ?? 0,
   };
+};
+
+const isTouchDevice = () => {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+    return false;
+  }
+
+  return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+};
+
+const isIOSLikeDevice = () => {
+  if (typeof navigator === 'undefined') {
+    return false;
+  }
+
+  const userAgent = navigator.userAgent || '';
+  return /iPad|iPhone|iPod/.test(userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 };
 
 const formatNumber = (value: number, locale: string, maxFractionDigits = 4) =>
@@ -644,8 +664,8 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
   const viewportHeight = viewportMetrics.height;
   const availablePanelWidth = Math.max(0, viewportWidth - PANEL_SAFE_MARGIN_PX * 2);
   const availablePanelHeight = Math.max(0, viewportHeight - PANEL_SAFE_MARGIN_PX * 2);
-  const panelWidth = Math.min(PANEL_MAX_WIDTH_PX, availablePanelWidth);
-  const renderedPanelWidth = Math.min(panelSize.width || panelWidth, panelWidth);
+  const defaultPanelWidth = Math.min(PANEL_MAX_WIDTH_PX, availablePanelWidth);
+  const renderedPanelWidth = Math.min(panelSize.width || defaultPanelWidth, defaultPanelWidth);
   const renderedPanelHeight = Math.min(panelSize.height, availablePanelHeight);
   const anchorX = viewportLeft + x;
   const anchorY = viewportTop + y;
@@ -669,6 +689,14 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
     390,
     Math.max(0, viewportWidth - PANEL_SAFE_MARGIN_PX * 2),
   );
+  const useIOSSheetLayout = isIOSLikeDevice() && isTouchDevice() && viewportWidth < 1024;
+  const mobilePanelWidth = Math.max(0, viewportWidth - (MOBILE_PANEL_SAFE_MARGIN_PX * 2));
+  const mobilePanelHeight = Math.max(0, viewportHeight - (MOBILE_PANEL_VERTICAL_GAP_PX * 2));
+  const resolvedPanelLeft = useIOSSheetLayout ? viewportLeft + MOBILE_PANEL_SAFE_MARGIN_PX : panelLeft;
+  const resolvedPanelTop = useIOSSheetLayout ? viewportTop + MOBILE_PANEL_VERTICAL_GAP_PX : panelTop;
+  const resolvedPanelWidth = useIOSSheetLayout ? mobilePanelWidth : defaultPanelWidth;
+  const resolvedPanelHeight = useIOSSheetLayout ? mobilePanelHeight : undefined;
+  const resolvedPanelMaxHeight = useIOSSheetLayout ? mobilePanelHeight : availablePanelHeight;
 
   return (
     <div className="fixed inset-0 z-[100]" onPointerDown={onClose}>
@@ -676,15 +704,27 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
         ref={panelRef}
         className="pointer-events-auto fixed overflow-y-auto overflow-x-hidden overscroll-contain rounded-3xl border border-default bg-surface shadow-xl"
         style={{
-          left: `${panelLeft}px`,
-          top: `${panelTop}px`,
-          width: `${panelWidth}px`,
-          maxHeight: `${availablePanelHeight}px`,
+          left: `${resolvedPanelLeft}px`,
+          top: `${resolvedPanelTop}px`,
+          width: `${resolvedPanelWidth}px`,
+          height: typeof resolvedPanelHeight === 'number' ? `${resolvedPanelHeight}px` : undefined,
+          maxHeight: `${resolvedPanelMaxHeight}px`,
+          WebkitOverflowScrolling: 'touch',
         }}
         onPointerDown={(event) => event.stopPropagation()}
       >
         <div className="space-y-4 p-4">
           <div className="sticky top-0 z-10 -mx-4 -mt-4 border-b border-subtle bg-surface/95 px-4 py-3 backdrop-blur">
+            <button
+              type="button"
+              className="mb-2 flex w-full items-center justify-center rounded-t-2xl py-1 text-secondary transition-opacity hover:opacity-80"
+              onClick={onClose}
+              aria-label={messages.propertiesMenu.closeDetails}
+            >
+              <span className="flex items-center gap-1 rounded-full border border-subtle bg-surface-secondary px-3 py-1 text-xs font-medium">
+                <ArrowDown className="size-3.5" />
+              </span>
+            </button>
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">

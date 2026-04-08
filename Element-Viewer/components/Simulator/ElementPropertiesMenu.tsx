@@ -740,13 +740,13 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
           <div className="sticky top-0 z-10 -mx-4 -mt-4 border-b border-subtle bg-surface/95 px-4 py-3 backdrop-blur">
             <button
               type="button"
-              className="mb-3 flex w-full flex-col items-center gap-2 rounded-2xl border border-subtle bg-surface-secondary/80 px-4 py-3 text-secondary transition-colors hover:bg-surface-secondary active:bg-surface-secondary"
+              className="mb-3 mx-auto flex w-full max-w-[11rem] flex-col items-center gap-1.5 rounded-2xl border border-subtle bg-surface-secondary/80 px-3 py-2 text-secondary transition-colors hover:bg-surface-secondary active:bg-surface-secondary"
               onClick={onClose}
               aria-label={messages.propertiesMenu.closeDetails}
             >
-              <span className="h-1.5 w-16 rounded-full bg-border" />
-              <span className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-secondary">
-                <ArrowDown className="size-3.5" />
+              <span className="h-1 w-12 rounded-full bg-border" />
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-secondary">
+                <ArrowDown className="size-3" />
                 {messages.propertiesMenu.closeDetails}
               </span>
             </button>

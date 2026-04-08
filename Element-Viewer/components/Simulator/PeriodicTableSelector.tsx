@@ -262,6 +262,11 @@ const PeriodicTableSelector: React.FC<Props> = ({
   const pointerStartY = useRef<number | null>(null);
   const activePointerId = useRef<number | null>(null);
   const activeSliderRef = useRef<'temperature' | 'pressure' | null>(null);
+  const recentTouchSelectionRef = useRef<{
+    atomicNumber: number;
+    source: 'periodic_table' | 'reaction_product';
+    at: number;
+  } | null>(null);
   const dragHandleRef = useRef<HTMLDivElement | null>(null);
   const sheetSurfaceRef = useRef<HTMLDivElement | null>(null);
   const dragRafRef = useRef<number | null>(null);
@@ -292,6 +297,85 @@ const PeriodicTableSelector: React.FC<Props> = ({
     const formatted = formatNumber(Number(valueInCurrentUnit.toPrecision(6)), { maximumSignificantDigits: 6 });
     return `${formatted} ${pressureUnit}`;
   }, [formatNumber, pressureUnit]);
+
+  const triggerImmediateSelection = useCallback((
+    element: ChemicalElement,
+    source: 'periodic_table' | 'reaction_product',
+  ) => {
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const previous = recentTouchSelectionRef.current;
+
+    if (
+      previous
+      && previous.atomicNumber === element.atomicNumber
+      && previous.source === source
+      && (now - previous.at) < 450
+    ) {
+      return;
+    }
+
+    recentTouchSelectionRef.current = {
+      atomicNumber: element.atomicNumber,
+      source,
+      at: now,
+    };
+
+    if (source === 'reaction_product') {
+      onSelectReactionProduct(element);
+      return;
+    }
+
+    onSelect(element);
+  }, [onSelect, onSelectReactionProduct]);
+
+  const shouldIgnoreSyntheticClick = useCallback((
+    atomicNumber: number,
+    source: 'periodic_table' | 'reaction_product',
+  ) => {
+    const previous = recentTouchSelectionRef.current;
+    if (!previous) return false;
+
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    return previous.atomicNumber === atomicNumber && previous.source === source && (now - previous.at) < 700;
+  }, []);
+
+  const handlePeriodicCellPointerDown = useCallback((
+    event: React.PointerEvent,
+    element: ChemicalElement,
+  ) => {
+    if (event.pointerType === 'mouse') return;
+    event.preventDefault();
+    event.stopPropagation();
+    triggerImmediateSelection(element, 'periodic_table');
+  }, [triggerImmediateSelection]);
+
+  const handleReactionPillPointerDown = useCallback((
+    event: React.PointerEvent,
+    element: ChemicalElement,
+  ) => {
+    if (event.pointerType === 'mouse') return;
+    event.preventDefault();
+    event.stopPropagation();
+    triggerImmediateSelection(element, 'reaction_product');
+  }, [triggerImmediateSelection]);
+
+  const handlePeriodicCellTouchStart = useCallback((
+    event: React.TouchEvent,
+    element: ChemicalElement,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    triggerImmediateSelection(element, 'periodic_table');
+  }, [triggerImmediateSelection]);
+
+  const handleReactionPillTouchStart = useCallback((
+    event: React.TouchEvent,
+    element: ChemicalElement,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    triggerImmediateSelection(element, 'reaction_product');
+  }, [triggerImmediateSelection]);
 
   const flushDragOffset = useCallback(() => {
     const nextOffset = pendingDragOffset.current;
@@ -503,8 +587,9 @@ const PeriodicTableSelector: React.FC<Props> = ({
           className={`periodic-sheet mx-auto w-full max-w-5xl rounded-t-3xl sm:p-2 transition-opacity duration-200 ease-out ${isDraggingSheet || isSliderActive ? 'periodic-sheet-interacting' : ''} ${isSliderActive ? 'border-transparent bg-transparent shadow-none' : 'periodic-sheet-surface border border-default shadow-2xl'}`}
           style={{
             maxHeight: `min(calc(100% - ${Math.max(bottomDockOffset, 0)}px), calc(100dvh - ${Math.max(bottomDockOffset, 0) + 8}px))`,
-            overflowY: 'auto',
-            overscrollBehavior: 'contain',
+            overflowY: 'hidden',
+            overscrollBehavior: 'none',
+            touchAction: 'manipulation',
           }}
         >
           <div
@@ -753,7 +838,14 @@ const PeriodicTableSelector: React.FC<Props> = ({
                             color="secondary"
                             variant="solid"
                             size="sm"
-                            onClick={() => onSelectReactionProduct(reaction)}
+                            onClick={() => {
+                              if (shouldIgnoreSyntheticClick(reaction.atomicNumber, 'reaction_product')) {
+                                return;
+                              }
+                              onSelectReactionProduct(reaction);
+                            }}
+                            onPointerDown={(event) => handleReactionPillPointerDown(event, reaction)}
+                            onTouchStart={(event) => handleReactionPillTouchStart(event, reaction)}
                             className={`periodic-reaction-pill relative z-[5] text-xs font-semibold ${isSelected ? 'periodic-reaction-pill-selected' : ''}`}
                             style={reactionStyle}
                             title={reaction.name}
@@ -794,7 +886,14 @@ const PeriodicTableSelector: React.FC<Props> = ({
                       color="secondary"
                       variant="solid"
                       size="sm"
-                      onClick={() => onSelect(el)}
+                      onClick={() => {
+                        if (shouldIgnoreSyntheticClick(el.atomicNumber, 'periodic_table')) {
+                          return;
+                        }
+                        onSelect(el);
+                      }}
+                      onPointerDown={(event) => handlePeriodicCellPointerDown(event, el)}
+                      onTouchStart={(event) => handlePeriodicCellTouchStart(event, el)}
                       className={`periodic-cell ${isSelected ? 'periodic-cell-selected' : ''}`}
                       style={cellStyle}
                     >

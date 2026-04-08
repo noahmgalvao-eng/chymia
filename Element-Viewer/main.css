@@ -123,6 +123,8 @@
   width: 100%;
   box-sizing: border-box;
   padding: 0.125rem;
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: auto;
 }
 
 .periodic-sheet-surface {
@@ -145,12 +147,18 @@
   grid-template-columns: repeat(18, minmax(0, 1fr));
   grid-template-rows: repeat(10, minmax(0, auto));
   gap: clamp(1px, 0.18vw, 2px);
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .periodic-grid-scroll {
   width: 100%;
   overflow: hidden;
   padding-bottom: 0;
+  overscroll-behavior: none;
+  touch-action: manipulation;
 }
 
 .periodic-grid-scroll::-webkit-scrollbar {
@@ -210,6 +218,10 @@
   text-align: center !important;
   overflow: hidden !important;
   opacity: 1 !important;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .periodic-cell::before {
@@ -342,6 +354,8 @@
   padding-left: 0.42rem !important;
   padding-right: 0.42rem !important;
   overflow: visible !important;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 @media (min-width: 640px) {
@@ -358,6 +372,48 @@
   .periodic-toolbar-main {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) and (min-width: 768px) {
+  .periodic-cell {
+    --periodic-cell-inset: 0.25rem;
+    border-radius: 0.58rem !important;
+  }
+
+  .periodic-cell-number {
+    inset-block-start: 0.25rem;
+    inset-inline-start: 0.25rem;
+    max-width: calc(100% - 0.5rem);
+    font-size: 8px;
+    line-height: 1;
+  }
+
+  .periodic-cell-symbol {
+    position: static;
+    inset-inline-start: auto;
+    inset-block-start: auto;
+    transform: none;
+    max-width: 100%;
+    padding-inline: 0;
+    font-size: var(--font-text-2xs-size, 0.625rem);
+    font-weight: var(--font-weight-semibold, 600);
+    line-height: 1;
+    letter-spacing: 0;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  .periodic-cell-index {
+    inset-block-start: 0.125rem;
+    inset-block-end: auto;
+    inset-inline-start: auto;
+    inset-inline-end: 0.125rem;
+    min-width: 0.875rem;
+    height: 0.875rem;
+    padding: 0;
+    font-size: 8px;
+    line-height: 1;
   }
 }
 

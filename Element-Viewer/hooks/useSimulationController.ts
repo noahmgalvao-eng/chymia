@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useRef, useState, type MouseEvent } from 'react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import type { ContextMenuData } from '../app/appDefinitions';
 import {
   collapseSelectionForSingleMode,
@@ -55,6 +55,7 @@ export function useSimulationController({
   const [recordingResults, setRecordingResults] = useState<RecordingResult[] | null>(null);
 
   const simulationRegistry = useRef<Map<number, () => PhysicsState>>(new Map());
+  const selectedElementsRef = useRef<ChemicalElement[]>(selectedElements);
 
   const { syncStateToChatGPT, scheduleSyncStateToChatGPT } = useWidgetStateSync({
     locale,
@@ -70,6 +71,10 @@ export function useSimulationController({
     setIsMultiSelect,
     simulationRegistry,
   });
+
+  useEffect(() => {
+    selectedElementsRef.current = selectedElements;
+  }, [selectedElements]);
 
   useEffect(() => {
     const localizeNaturalElement = (element: ChemicalElement): ChemicalElement => {
@@ -143,20 +148,20 @@ export function useSimulationController({
     source: 'periodic_table' | 'reaction_product',
   ) => {
     if (isRecording) return;
+    const currentSelection = selectedElementsRef.current;
 
     const { didChange, nextSelection } = computeNextSelection({
       allowSingleDeselect,
       candidate: element,
       fallbackElement: defaultElement,
       isMultiSelect,
-      selectedElements,
+      selectedElements: currentSelection,
     });
 
     if (didChange) {
-      startTransition(() => {
-        setSelectedElements(nextSelection);
-        setContextMenu(null);
-      });
+      selectedElementsRef.current = nextSelection;
+      setSelectedElements(nextSelection);
+      setContextMenu(null);
       logEvent('ELEMENT_SELECT', {
         atomicNumber: element.atomicNumber,
         symbol: element.symbol,
@@ -185,8 +190,10 @@ export function useSimulationController({
     const newValue = !isMultiSelect;
     setIsMultiSelect(newValue);
 
-    if (!newValue && selectedElements.length > 1) {
-      setSelectedElements(collapseSelectionForSingleMode(selectedElements));
+    if (!newValue && selectedElementsRef.current.length > 1) {
+      const collapsedSelection = collapseSelectionForSingleMode(selectedElementsRef.current);
+      selectedElementsRef.current = collapsedSelection;
+      setSelectedElements(collapsedSelection);
       scheduleSyncStateToChatGPT();
     }
   };

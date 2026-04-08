@@ -6,11 +6,18 @@ const PATH_NUMBER_REGEX = /[-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?/g;
 const HEX_VERTICAL_FACTOR = Math.sqrt(3) / 2;
 const PERIMETER_ANGLES = Array.from({ length: 8 }, (_, index) => (Math.PI / 4) * index);
 const MAX_LAYOUT_CACHE_ENTRIES = 64;
+const MAX_PATH_CACHE_ENTRIES = 128;
 const NEIGHBOR_DISTANCE_FACTOR = 1.18;
 const HEX_NEIGHBOR_COUNT = 6;
+const VISIBLE_PATH_PRECISION = 0.01;
+const INTERNAL_LAYOUT_PATH_PRECISION = 0.1;
+const INTERNAL_LAYOUT_SCALE_PRECISION = 0.01;
 
 let sharedCanvasContext: CanvasRenderingContext2D | null | undefined;
 const evaporationLayoutCache = new Map<string, EvaporationLayout>();
+const matterPathCache = new Map<string, string>();
+const matterPathBoundsCache = new Map<string, ReturnType<typeof getPathBounds>>();
+const matterPathShapeCache = new Map<string, Path2D>();
 
 export interface MatterRenderTransform {
     scaleX: number;
@@ -62,6 +69,9 @@ interface BuildEvaporationLayoutInput {
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 
 const fract = (value: number) => value - Math.floor(value);
+const quantize = (value: number, precision: number) => (
+    Math.round(value / precision) * precision
+);
 
 const getOrganicBias = (index: number) => fract(Math.sin((index + 1) * 91.345) * 47453.5453);
 
@@ -74,12 +84,19 @@ const getCanvasContext = () => {
     return sharedCanvasContext;
 };
 
-const ensureCacheLimit = () => {
-    while (evaporationLayoutCache.size > MAX_LAYOUT_CACHE_ENTRIES) {
-        const firstKey = evaporationLayoutCache.keys().next().value;
+const ensureMapLimit = <T>(cache: Map<string, T>, maxEntries: number) => {
+    while (cache.size > maxEntries) {
+        const firstKey = cache.keys().next().value;
         if (!firstKey) break;
-        evaporationLayoutCache.delete(firstKey);
+        cache.delete(firstKey);
     }
+};
+
+const ensureLayoutCacheLimit = () => ensureMapLimit(evaporationLayoutCache, MAX_LAYOUT_CACHE_ENTRIES);
+const ensurePathCacheLimit = () => {
+    ensureMapLimit(matterPathCache, MAX_PATH_CACHE_ENTRIES);
+    ensureMapLimit(matterPathBoundsCache, MAX_PATH_CACHE_ENTRIES);
+    ensureMapLimit(matterPathShapeCache, MAX_PATH_CACHE_ENTRIES);
 };
 
 const getPathBounds = (path: string) => {
@@ -130,16 +147,29 @@ const circleFitsInPath = (
     return true;
 };
 
-export const getMatterPathFromProgress = (pathProgress: number) => {
-    const frameIndex = Math.min(Math.floor(pathProgress), MATTER_PATH_FRAMES.length - 2);
+export const getMatterPathFromProgress = (
+    pathProgress: number,
+    precision = VISIBLE_PATH_PRECISION,
+) => {
+    const quantizedProgress = quantize(pathProgress, precision);
+    const cacheKey = `${precision}:${quantizedProgress.toFixed(precision >= 0.1 ? 1 : 2)}`;
+    const cachedPath = matterPathCache.get(cacheKey);
+    if (cachedPath) {
+        return cachedPath;
+    }
+
+    const frameIndex = Math.min(Math.floor(quantizedProgress), MATTER_PATH_FRAMES.length - 2);
     const nextFrameIndex = frameIndex + 1;
-    const progressInFrame = pathProgress - frameIndex;
+    const progressInFrame = quantizedProgress - frameIndex;
 
     const d1 = MATTER_PATH_FRAMES[frameIndex];
     const d2 = MATTER_PATH_FRAMES[nextFrameIndex];
 
     if (!d1 || !d2) return MATTER_PATH_FRAMES[0];
-    return interpolatePath(d1, d2, progressInFrame);
+    const interpolatedPath = interpolatePath(d1, d2, progressInFrame);
+    matterPathCache.set(cacheKey, interpolatedPath);
+    ensurePathCacheLimit();
+    return interpolatedPath;
 };
 
 export const getMatterRenderTransform = (
@@ -204,13 +234,16 @@ export const buildEvaporationLayout = ({
     if (!ctx || typeof Path2D === 'undefined') return null;
 
     const { scaleX, scaleY, centerX, centerY } = getMatterRenderTransform(matterRect, meltProgress, state);
-    const currentPath = getMatterPathFromProgress(pathProgress);
+    const quantizedPathProgress = quantize(pathProgress, INTERNAL_LAYOUT_PATH_PRECISION);
+    const quantizedScaleX = quantize(scaleX, INTERNAL_LAYOUT_SCALE_PRECISION);
+    const quantizedScaleY = quantize(scaleY, INTERNAL_LAYOUT_SCALE_PRECISION);
+    const currentPath = getMatterPathFromProgress(quantizedPathProgress, INTERNAL_LAYOUT_PATH_PRECISION);
     const safeScaleX = Math.max(1e-6, Math.abs(scaleX));
     const safeScaleY = Math.max(1e-6, Math.abs(scaleY));
     const cacheKey = [
-        pathProgress.toFixed(3),
-        scaleX.toFixed(4),
-        scaleY.toFixed(4),
+        quantizedPathProgress.toFixed(1),
+        quantizedScaleX.toFixed(2),
+        quantizedScaleY.toFixed(2),
         effectiveRadius.toFixed(4),
     ].join(':');
 
@@ -219,7 +252,12 @@ export const buildEvaporationLayout = ({
         return cachedLayout;
     }
 
-    const bounds = getPathBounds(currentPath);
+    let bounds = matterPathBoundsCache.get(currentPath);
+    if (bounds === undefined) {
+        bounds = getPathBounds(currentPath);
+        matterPathBoundsCache.set(currentPath, bounds);
+        ensurePathCacheLimit();
+    }
     if (!bounds) return null;
 
     const { minX, maxX, minY, maxY } = bounds;
@@ -237,7 +275,12 @@ export const buildEvaporationLayout = ({
     const rowOffsetLocalX = (spacingWorld * 0.5) / safeScaleX;
     const localRadiusX = effectiveRadius / safeScaleX;
     const localRadiusY = effectiveRadius / safeScaleY;
-    const path = new Path2D(currentPath);
+    let path = matterPathShapeCache.get(currentPath);
+    if (!path) {
+        path = new Path2D(currentPath);
+        matterPathShapeCache.set(currentPath, path);
+        ensurePathCacheLimit();
+    }
     const slots: EvaporationLayoutSlot[] = [];
 
     let rowIndex = 0;
@@ -311,6 +354,6 @@ export const buildEvaporationLayout = ({
     };
 
     evaporationLayoutCache.set(cacheKey, layout);
-    ensureCacheLimit();
+    ensureLayoutCacheLimit();
     return layout;
 };

@@ -1,10 +1,15 @@
 
 import React, { useMemo, useRef } from 'react';
 import { PhysicsState, ChemicalElement, MatterState, Particle, ParticleState, ViewBoxDimensions } from '../../types';
-import { MATTER_PATH_FRAMES } from '../../data/elements';
-import { interpolatePath, interpolateColor, interpolateValue } from '../../utils/interpolator';
+import { interpolateColor, interpolateValue } from '../../utils/interpolator';
 import { getPhaseStatusLabel } from '../../app/appDefinitions';
 import { useI18n } from '../../i18n';
+import {
+    getMatterPathFromProgress,
+    getMatterRenderTransform,
+    getParticleVibration,
+} from '../../utils/evaporationLayout';
+import { createSpatialGrid, forEachSpatialGridPair, insertSpatialGridIndex, resetSpatialGrid } from '../../utils/spatialGrid';
 
 interface Props {
     physics: PhysicsState;
@@ -84,6 +89,8 @@ const smoothstep = (value: number) => {
     const t = clamp01(value);
     return t * t * (3 - (2 * t));
 };
+const PARTICLE_RENDER_GRID_CELL_SIZE = 14;
+const FILTER_STEP_HZ = 10;
 
 const getTrappedParticleAnchor = (
     particle: Particle,
@@ -143,20 +150,10 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
     const { messages } = useI18n();
     const { pathProgress, state, particles, boilProgress, meltProgress, matterRect, gasBounds, scfOpacity, simTime, sublimationProgress, powerInput } = physics;
     const trappedParticleRenderCacheRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+    const particleRenderGridRef = useRef(createSpatialGrid(PARTICLE_RENDER_GRID_CELL_SIZE));
 
     // --- 1. SVG Path Interpolator (Puddle / Solid) ---
-    const currentPath = useMemo(() => {
-        // pathProgress goes 0 -> 10
-        const frameIndex = Math.min(Math.floor(pathProgress), MATTER_PATH_FRAMES.length - 2);
-        const nextFrameIndex = frameIndex + 1;
-        const progressInFrame = pathProgress - frameIndex;
-
-        const d1 = MATTER_PATH_FRAMES[frameIndex];
-        const d2 = MATTER_PATH_FRAMES[nextFrameIndex];
-
-        if (!d1 || !d2) return MATTER_PATH_FRAMES[0];
-        return interpolatePath(d1, d2, progressInFrame);
-    }, [pathProgress]);
+    const currentPath = useMemo(() => getMatterPathFromProgress(pathProgress, 0.01), [pathProgress]);
 
     // --- DNA Visual Properties (Dynamic from JSON) ---
     const { solid, liquid, gas } = element.visualDNA;
@@ -215,22 +212,10 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
         };
     }, [state, meltProgress, solid, liquid, gas, adjustedSolidColor, adjustedLiquidColor, adjustedGasColor, showParticles]);
 
-    const { scaleX, scaleY, centerX, centerY } = useMemo(() => {
-        let refWidth = 120 + (180 * meltProgress);
-        let refHeight = 120 - (70 * meltProgress);
-
-        if (state === MatterState.SUBLIMATION || state === MatterState.EQUILIBRIUM_SUB) {
-            refWidth = 120;
-            refHeight = 120;
-        }
-
-        return {
-            scaleX: matterRect ? matterRect.w / refWidth : 1,
-            scaleY: matterRect ? matterRect.h / refHeight : 1,
-            centerX: 200,
-            centerY: 300,
-        };
-    }, [state, meltProgress, matterRect]);
+    const { scaleX, scaleY, centerX, centerY } = useMemo(
+        () => getMatterRenderTransform(matterRect, meltProgress, state),
+        [matterRect, meltProgress, state],
+    );
 
     const shouldResolveParticleOverlaps =
         [
@@ -260,11 +245,10 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
 
         const isMeltLike = isMeltLikeState(state);
         const isBoilingLike = state === MatterState.BOILING || state === MatterState.EQUILIBRIUM_BOIL;
-        const vibrationAmp = Math.sqrt(Math.max(0, physics.temperature)) * 0.15;
-        const time = physics.simTime * 25;
         const trappedJitterScale = getTrappedJitterScale(state, meltProgress);
         const previousTrappedRenderCache = trappedParticleRenderCacheRef.current;
         const nextTrappedRenderCache = new Map<number, { x: number; y: number }>();
+        const grid = particleRenderGridRef.current;
         const nodes: Array<{
             id: number;
             state: ParticleState;
@@ -279,10 +263,9 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
 
             if (particle.state === ParticleState.TRAPPED) {
                 const anchor = getTrappedParticleAnchor(particle, state, meltProgress);
-                const jitterX = Math.sin(time + particle.id * 123) * vibrationAmp * trappedJitterScale;
-                const jitterY = Math.cos(time + particle.id * 321) * vibrationAmp * trappedJitterScale;
-                targetX = anchor.x + jitterX;
-                targetY = anchor.y + jitterY;
+                const vibration = getParticleVibration(particle.id, physics.simTime, physics.temperature);
+                targetX = anchor.x + (vibration.x * trappedJitterScale);
+                targetY = anchor.y + (vibration.y * trappedJitterScale);
 
                 if (isMeltLike) {
                     const previous = previousTrappedRenderCache.get(particle.id);
@@ -312,57 +295,63 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
             : nodes;
 
         const applySeparationPass = (): number => {
+            resetSpatialGrid(grid, PARTICLE_RENDER_GRID_CELL_SIZE);
+            for (let index = 0; index < overlapNodes.length; index += 1) {
+                const node = overlapNodes[index];
+                insertSpatialGridIndex(grid, index, node.x, node.y);
+            }
+
             let maxOverlap = 0;
 
-            for (let i = 0; i < overlapNodes.length; i += 1) {
-                const p1 = overlapNodes[i];
+            forEachSpatialGridPair(grid, (firstIndex, secondIndex) => {
+                const p1 = overlapNodes[firstIndex];
+                const p2 = overlapNodes[secondIndex];
+                if (!p1 || !p2) return;
 
-                for (let j = i + 1; j < overlapNodes.length; j += 1) {
-                    const p2 = overlapNodes[j];
-                    const dx = p2.x - p1.x;
-                    const dy = p2.y - p1.y;
-                    const minDist = p1.r + p2.r;
-                    const minDistSq = minDist * minDist;
-                    const distSq = (dx * dx) + (dy * dy);
+                const dx = p2.x - p1.x;
+                const dy = p2.y - p1.y;
+                const minDist = p1.r + p2.r;
+                const minDistSq = minDist * minDist;
+                const distSq = (dx * dx) + (dy * dy);
 
-                    if (distSq >= minDistSq) continue;
+                if (distSq >= minDistSq) return;
 
-                    let nx = 1;
-                    let ny = 0;
-                    let dist = Math.sqrt(distSq);
+                let nx = 1;
+                let ny = 0;
+                let dist = Math.sqrt(distSq);
 
-                    if (dist > distanceEpsilon) {
-                        nx = dx / dist;
-                        ny = dy / dist;
-                    } else {
-                        const seed = (p1.id * 92821) + (p2.id * 68917);
-                        const angle = (seed % 360) * (Math.PI / 180);
-                        nx = Math.cos(angle);
-                        ny = Math.sin(angle);
-                        dist = 0;
-                    }
-
-                    const overlap = minDist - dist;
-                    if (overlap > maxOverlap) {
-                        maxOverlap = overlap;
-                    }
-                    const isBothTrapped = p1.state === ParticleState.TRAPPED && p2.state === ParticleState.TRAPPED;
-                    const correctionStrength = isMeltLike && isBothTrapped ? 0.18 : 0.5;
-                    const correction = overlap * correctionStrength;
-
-                    p1.x -= nx * correction;
-                    p1.y -= ny * correction;
-                    p2.x += nx * correction;
-                    p2.y += ny * correction;
+                if (dist > distanceEpsilon) {
+                    nx = dx / dist;
+                    ny = dy / dist;
+                } else {
+                    const seed = (p1.id * 92821) + (p2.id * 68917);
+                    const angle = (seed % 360) * (Math.PI / 180);
+                    nx = Math.cos(angle);
+                    ny = Math.sin(angle);
+                    dist = 0;
                 }
-            }
+
+                const overlap = minDist - dist;
+                if (overlap > maxOverlap) {
+                    maxOverlap = overlap;
+                }
+
+                const isBothTrapped = p1.state === ParticleState.TRAPPED && p2.state === ParticleState.TRAPPED;
+                const correctionStrength = isMeltLike && isBothTrapped ? 0.18 : 0.5;
+                const correction = overlap * correctionStrength;
+
+                p1.x -= nx * correction;
+                p1.y -= ny * correction;
+                p2.x += nx * correction;
+                p2.y += ny * correction;
+            });
 
             return maxOverlap;
         };
 
-        const relaxationPasses = isMeltLike ? 4 : 8;
+        const relaxationPasses = overlapNodes.length > 1 ? 2 : 0;
         const targetBlend = isMeltLike ? 0.26 : 0.15;
-        const finalPassLimit = isMeltLike ? 3 : (isBoilingLike ? 4 : 8);
+        const finalPassLimit = overlapNodes.length > 1 ? 1 : 0;
 
         for (let iter = 0; iter < relaxationPasses; iter += 1) {
             applySeparationPass();
@@ -401,13 +390,11 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
     ]);
 
     // --- VISIBILITY LOGIC ---
-    const hasTrappedParticles = useMemo(() => {
-        return particles.some(p => p.state === ParticleState.TRAPPED);
-    }, [particles]);
+    const hasTrappedParticles = particles.some((particle) => particle.state === ParticleState.TRAPPED);
 
-    const hasLiquidParticles = useMemo(() => {
-        return particles.some(p => p.state === ParticleState.TRAPPED || p.state === ParticleState.CONDENSING);
-    }, [particles]);
+    const hasLiquidParticles = particles.some(
+        (particle) => particle.state === ParticleState.TRAPPED || particle.state === ParticleState.CONDENSING,
+    );
 
     const shouldShowPuddle =
         state === MatterState.SOLID ||
@@ -442,11 +429,12 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
     }
 
     // --- ANIMATION VALUES ---
-    const hazeFreq = 0.02 + (0.01 * Math.abs(Math.sin(simTime * 0.3)));
-    const boilingSeed = Math.floor(simTime * 60) % 100;
-    const steamFreq = 0.02 + (0.005 * Math.abs(Math.sin(simTime * 0.5)));
-    const scfSeed = Math.floor(simTime * 20) % 100;
-    const scfNoiseSeed = Math.floor(simTime * 15) % 100;
+    const filterTime = Math.floor(simTime * FILTER_STEP_HZ) / FILTER_STEP_HZ;
+    const hazeFreq = 0.02 + (0.01 * Math.abs(Math.sin(filterTime * 0.3)));
+    const boilingSeed = Math.floor(filterTime * 60) % 100;
+    const steamFreq = 0.02 + (0.005 * Math.abs(Math.sin(filterTime * 0.5)));
+    const scfSeed = Math.floor(filterTime * 20) % 100;
+    const scfNoiseSeed = Math.floor(filterTime * 15) % 100;
 
     // --- FILTER ACTIVATION LOGIC ---
     const showBoilingEffect =
@@ -464,6 +452,9 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
         state === MatterState.EQUILIBRIUM_TRIPLE ||
         state === MatterState.SUBLIMATION ||
         state === MatterState.EQUILIBRIUM_SUB;
+    const particleLayerFilter = displacementScale > 0
+        ? `url(#heatHaze-${element.symbol})`
+        : undefined;
 
     const isMetallic = ['metal', 'metalloid'].includes(element.category);
     const viewBoxString = `${viewBounds.minX} ${viewBounds.minY} ${viewBounds.width} ${viewBounds.height}`;
@@ -730,7 +721,7 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
                 </g>
 
                 {/* --- PARTICLE SYSTEM LAYER --- */}
-                <g filter={`url(#heatHaze-${element.symbol})`} pointerEvents="none">
+                <g filter={particleLayerFilter} pointerEvents="none">
                     {particles.map((p) => {
                         // VISIBILITY FIX:
                         // Only hide particles if they are TRAPPED inside the bulk solid/liquid.
@@ -766,13 +757,10 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
                                 renderY = resolvedParticlePosition.y;
                             } else {
                                 const anchor = getTrappedParticleAnchor(p, state, meltProgress);
-                                const vibrationAmp = Math.sqrt(Math.max(0, physics.temperature)) * 0.15;
+                                const vibration = getParticleVibration(p.id, physics.simTime, physics.temperature);
                                 const jitterScale = getTrappedJitterScale(state, meltProgress);
-                                const time = physics.simTime * 25;
-                                const jitterX = Math.sin(time + p.id * 123) * vibrationAmp * jitterScale;
-                                const jitterY = Math.cos(time + p.id * 321) * vibrationAmp * jitterScale;
-                                renderX = anchor.x + jitterX;
-                                renderY = anchor.y + jitterY;
+                                renderX = anchor.x + (vibration.x * jitterScale);
+                                renderY = anchor.y + (vibration.y * jitterScale);
                             }
                         } else {
                             const resolvedParticlePosition = particleRenderMap.get(p.id);

@@ -4,7 +4,8 @@ import { ChemicalElement, MatterState, PhysicsState, MatterRect, Bounds, ViewBox
 import { SimulationMutableState } from './physics/types';
 import { calculateThermodynamics } from './physics/thermodynamics';
 import { calculateGeometry } from './physics/geometry';
-import { initParticles, updateParticleSystem } from './physics/particleSystem';
+import { createParticleFrameScratch, initParticles, updateParticleSystem } from './physics/particleSystem';
+import { createSpatialGrid } from '../utils/spatialGrid';
 
 interface UsePhysicsProps {
   element: ChemicalElement;
@@ -20,6 +21,7 @@ const SAMPLE_MASS = 0.001;
 const BASE_PARTICLE_COUNT = 50;
 const INIT_W = 134;
 const INIT_H = 134;
+const PARTICLE_DIAMETER = 12;
 
 export const usePhysics = ({ element, temperature: targetEnvTemp, pressure, qualityScale = 1.0, viewBounds, timeScale, isPaused }: UsePhysicsProps): PhysicsState => {
   
@@ -47,6 +49,11 @@ export const usePhysics = ({ element, temperature: targetEnvTemp, pressure, qual
     previousBoilLikeProgress: 0,
     slotByParticleId: new Map(),
     previousRetainedSlotIds: [],
+    frameVersion: 0,
+    activeGasCount: 0,
+    layoutCacheKey: '',
+    frameScratch: createParticleFrameScratch(),
+    collisionGrid: createSpatialGrid(PARTICLE_DIAMETER + 1),
     lastStableState: MatterState.SOLID,
     transitionStartTime: 0,
     transitionDuration: 1,
@@ -59,8 +66,11 @@ export const usePhysics = ({ element, temperature: targetEnvTemp, pressure, qual
     if (simState.current.particles.length !== effectiveParticleCount) {
         simState.current.particles = initParticles(effectiveParticleCount);
         simState.current.previousBoilLikeProgress = 0;
-        simState.current.slotByParticleId = new Map();
+        simState.current.slotByParticleId.clear();
         simState.current.previousRetainedSlotIds = [];
+        simState.current.frameScratch = createParticleFrameScratch();
+        simState.current.activeGasCount = 0;
+        simState.current.layoutCacheKey = '';
     }
   }, [effectiveParticleCount]);
 
@@ -70,8 +80,10 @@ export const usePhysics = ({ element, temperature: targetEnvTemp, pressure, qual
     const { meltingPointK, specificHeatSolid, specificHeatLiquid, latentHeatFusion } = element.properties;
 
     simState.current.previousBoilLikeProgress = 0;
-    simState.current.slotByParticleId = new Map();
+    simState.current.slotByParticleId.clear();
     simState.current.previousRetainedSlotIds = [];
+    simState.current.activeGasCount = 0;
+    simState.current.layoutCacheKey = '';
     simState.current.particles.forEach((particle) => {
         particle.liquidTargetX = undefined;
         particle.liquidTargetY = undefined;
@@ -170,6 +182,7 @@ export const usePhysics = ({ element, temperature: targetEnvTemp, pressure, qual
        });
 
        // 4. OUTPUT MAPPING
+       simState.current.frameVersion += 1;
        setOutputState({
            state: thermo.phase,
            temperature: thermo.currentTemp,
@@ -182,7 +195,7 @@ export const usePhysics = ({ element, temperature: targetEnvTemp, pressure, qual
            boilProgress: thermo.boilProgress,
            sublimationProgress: thermo.sublimationProgress,
            powerInput: thermo.powerInput,
-           particles: [...simState.current.particles],
+           particles: simState.current.particles,
            pathProgress: particleSystem.pathProgress,
            compressionFactor: geometry.compressionFactor, 
            gasBounds: geometry.gasBounds, 

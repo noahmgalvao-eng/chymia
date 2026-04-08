@@ -184,7 +184,7 @@ export default function SimulationViewport({
               variant="soft"
               pill
               uniform={layout.shouldCompactPeriodicTableButton}
-              className={layout.shouldCompactPeriodicTableButton ? layout.desktopUniformButtonClass : layout.desktopLabelButtonClass}
+              className={`${layout.shouldCompactPeriodicTableButton ? layout.desktopUniformButtonClass : layout.desktopLabelButtonClass} periodic-table-toggle-button`}
               onClick={onPeriodicTableButtonClick}
             >
               <SettingsSlider style={layout.controlIconStyle} />

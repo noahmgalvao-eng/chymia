@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Badge } from '@openai/apps-sdk-ui/components/Badge';
 import { Button, ButtonLink } from '@openai/apps-sdk-ui/components/Button';
 import {
@@ -78,6 +78,27 @@ const SUPERSCRIPT_MAP: Record<string, string> = {
 const MIN_ACTION_PRESSURE_PA = 1e-9;
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const clampActionTemperature = (value: number) => clamp(value, 1, 6000);
+const PANEL_SAFE_MARGIN_PX = 12;
+const PANEL_MAX_WIDTH_PX = 432;
+
+const getViewportMetrics = () => {
+  if (typeof window === 'undefined') {
+    return {
+      width: 1366,
+      height: 768,
+      offsetLeft: 0,
+      offsetTop: 0,
+    };
+  }
+
+  const visualViewport = window.visualViewport;
+  return {
+    width: visualViewport?.width ?? window.innerWidth,
+    height: visualViewport?.height ?? window.innerHeight,
+    offsetLeft: visualViewport?.offsetLeft ?? 0,
+    offsetTop: visualViewport?.offsetTop ?? 0,
+  };
+};
 
 const formatNumber = (value: number, locale: string, maxFractionDigits = 4) =>
   value.toLocaleString(locale, { maximumFractionDigits: maxFractionDigits });
@@ -227,9 +248,7 @@ const PhaseActionButton: React.FC<PhaseActionButtonProps> = ({
           side="top"
           align="end"
           sideOffset={6}
-          minWidth={260}
-          maxWidth={360}
-          className="z-[130] rounded-2xl border border-default bg-surface shadow-lg"
+          className="w-[min(92vw,22rem)] max-w-[min(92vw,22rem)] z-[130] rounded-2xl border border-default bg-surface shadow-lg"
         >
           <p className="p-3 text-xs leading-relaxed text-default">{helpText}</p>
         </Popover.Content>
@@ -242,7 +261,63 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
   const { locale, messages, formatNumber } = useI18n();
   const { element, physicsState, x, y } = data;
   const [showFullDescription, setShowFullDescription] = useState(false);
+  const [viewportMetrics, setViewportMetrics] = useState(getViewportMetrics);
+  const [panelSize, setPanelSize] = useState({ width: PANEL_MAX_WIDTH_PX, height: 640 });
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const isReactionProduct = element.category === 'reaction_product';
+
+  useEffect(() => {
+    const syncViewport = () => {
+      setViewportMetrics((current) => {
+        const next = getViewportMetrics();
+        const hasMeaningfulChange =
+          Math.abs(current.width - next.width) > 1 ||
+          Math.abs(current.height - next.height) > 1 ||
+          Math.abs(current.offsetLeft - next.offsetLeft) > 1 ||
+          Math.abs(current.offsetTop - next.offsetTop) > 1;
+
+        return hasMeaningfulChange ? next : current;
+      });
+    };
+
+    syncViewport();
+    window.addEventListener('resize', syncViewport);
+    window.visualViewport?.addEventListener('resize', syncViewport);
+    window.visualViewport?.addEventListener('scroll', syncViewport);
+
+    return () => {
+      window.removeEventListener('resize', syncViewport);
+      window.visualViewport?.removeEventListener('resize', syncViewport);
+      window.visualViewport?.removeEventListener('scroll', syncViewport);
+    };
+  }, []);
+
+  useEffect(() => {
+    const node = panelRef.current;
+    if (!node) return;
+
+    const measure = () => {
+      const rect = node.getBoundingClientRect();
+      setPanelSize((current) => {
+        const widthChanged = Math.abs(current.width - rect.width) > 1;
+        const heightChanged = Math.abs(current.height - rect.height) > 1;
+        return widthChanged || heightChanged
+          ? { width: rect.width, height: rect.height }
+          : current;
+      });
+    };
+
+    measure();
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(() => measure());
+      observer.observe(node);
+      return () => observer.disconnect();
+    }
+
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [element.atomicNumber, showFullDescription]);
 
   const sourceInfo = SOURCE_DATA.elements.find((entry) => entry.symbol === element.symbol) as
     | Record<string, any>
@@ -563,21 +638,50 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
   const summaryText = element.summary?.trim() || messages.common.notAvailable;
   const categoryText = element.displayCategory?.trim() || element.classification.groupName || messages.common.notAvailable;
   const canExpandDescription = summaryText.length > 140;
-  const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1366;
-  const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 768;
-  const side = x > viewportWidth * 0.6 ? 'left' : 'right';
-  const panelWidth = 432;
-  const panelLeft = side === 'right'
-    ? clamp(x + 12, 8, viewportWidth - panelWidth)
-    : clamp(x - panelWidth, 8, viewportWidth - panelWidth);
-  const panelTop = clamp(y - 24, 8, viewportHeight - 640);
+  const viewportLeft = viewportMetrics.offsetLeft;
+  const viewportTop = viewportMetrics.offsetTop;
+  const viewportWidth = viewportMetrics.width;
+  const viewportHeight = viewportMetrics.height;
+  const availablePanelWidth = Math.max(0, viewportWidth - PANEL_SAFE_MARGIN_PX * 2);
+  const availablePanelHeight = Math.max(0, viewportHeight - PANEL_SAFE_MARGIN_PX * 2);
+  const panelWidth = Math.min(PANEL_MAX_WIDTH_PX, availablePanelWidth);
+  const renderedPanelWidth = Math.min(panelSize.width || panelWidth, panelWidth);
+  const renderedPanelHeight = Math.min(panelSize.height, availablePanelHeight);
+  const anchorX = viewportLeft + x;
+  const anchorY = viewportTop + y;
+  const side = anchorX > viewportLeft + viewportWidth * 0.6 ? 'left' : 'right';
+  const desiredPanelLeft = side === 'right'
+    ? anchorX + 12
+    : anchorX - renderedPanelWidth - 12;
+  const minPanelLeft = viewportLeft + PANEL_SAFE_MARGIN_PX;
+  const maxPanelLeft = Math.max(
+    minPanelLeft,
+    viewportLeft + viewportWidth - PANEL_SAFE_MARGIN_PX - renderedPanelWidth,
+  );
+  const minPanelTop = viewportTop + PANEL_SAFE_MARGIN_PX;
+  const maxPanelTop = Math.max(
+    minPanelTop,
+    viewportTop + viewportHeight - PANEL_SAFE_MARGIN_PX - renderedPanelHeight,
+  );
+  const panelLeft = clamp(desiredPanelLeft, minPanelLeft, maxPanelLeft);
+  const panelTop = clamp(anchorY - 24, minPanelTop, maxPanelTop);
+  const referencesPopoverMaxWidth = Math.min(
+    390,
+    Math.max(0, viewportWidth - PANEL_SAFE_MARGIN_PX * 2),
+  );
 
   return (
-    <div className="fixed inset-0 z-[100]" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-[100]" onPointerDown={onClose}>
       <div
-        className="pointer-events-auto fixed w-[min(96vw,27rem)] max-h-[min(86vh,40rem)] overflow-y-auto overflow-x-hidden rounded-3xl border border-default bg-surface shadow-xl"
-        style={{ left: `${panelLeft}px`, top: `${panelTop}px` }}
-        onMouseDown={(event) => event.stopPropagation()}
+        ref={panelRef}
+        className="pointer-events-auto fixed overflow-y-auto overflow-x-hidden overscroll-contain rounded-3xl border border-default bg-surface shadow-xl"
+        style={{
+          left: `${panelLeft}px`,
+          top: `${panelTop}px`,
+          width: `${panelWidth}px`,
+          maxHeight: `${availablePanelHeight}px`,
+        }}
+        onPointerDown={(event) => event.stopPropagation()}
       >
         <div className="space-y-4 p-4">
           <div className="sticky top-0 z-10 -mx-4 -mt-4 border-b border-subtle bg-surface/95 px-4 py-3 backdrop-blur">
@@ -620,7 +724,7 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2">
             {(isLiquidState || isGasState || isTripleState || isCriticalState) && (
               <PhaseActionButton
                 label={messages.propertiesMenu.actions.solidify}
@@ -743,7 +847,7 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold text-default">{messages.propertiesMenu.sectionTitles.atomicChemical}</p>
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2">
               {atomicChemicalProperties.map((item) => (
                 <PropertyCard key={item.label} item={item} hideSourceId={isReactionProduct} forceEstimated={isReactionProduct} />
               ))}
@@ -752,7 +856,7 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
 
           <div className="space-y-3 rounded-2xl border border-subtle bg-surface p-3">
             <p className="text-sm font-semibold text-default">{messages.propertiesMenu.sectionTitles.physics}</p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2">
               {physicsProperties.map((item) => (
                 <PropertyCard key={item.label} item={item} hideSourceId={isReactionProduct} forceEstimated={isReactionProduct} />
               ))}
@@ -771,11 +875,11 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
                 side="top"
                 align="end"
                 sideOffset={8}
-                minWidth={320}
-                maxWidth={390}
+                minWidth={Math.max(0, Math.min(240, referencesPopoverMaxWidth))}
+                maxWidth={referencesPopoverMaxWidth}
                 className="z-[130] rounded-2xl border border-default bg-surface shadow-lg"
               >
-                <div className="max-h-64 space-y-2 overflow-y-auto p-3" onMouseDown={(event) => event.stopPropagation()}>
+                <div className="max-h-[min(50dvh,16rem)] space-y-2 overflow-y-auto p-3" onPointerDown={(event) => event.stopPropagation()}>
                   <p className="text-xs font-medium text-secondary">{messages.propertiesMenu.referencesTitle}</p>
                   <ul className="space-y-2">
                     {references.map((reference) => (

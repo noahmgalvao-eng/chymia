@@ -33,6 +33,80 @@
   display: none !important;
 }
 
+.periodic-table-toggle-button {
+  --button-background-color: var(--color-surface-elevated, #ffffff);
+  --button-background-color-hover: color-mix(in oklab, var(--color-surface-elevated, #ffffff) 82%, var(--gray-150, #dce2ea) 18%);
+  --button-background-color-active: color-mix(in oklab, var(--color-surface-elevated, #ffffff) 72%, var(--gray-150, #dce2ea) 28%);
+  border: 1px solid var(--color-border-default, #d5dce5);
+  box-shadow: 0 10px 20px color-mix(in oklab, #0f172a 12%, transparent);
+  opacity: 1 !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+.periodic-table-toggle-button::before {
+  opacity: 1 !important;
+  background-color: var(--button-background-color) !important;
+  background-image: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+.periodic-toolbar {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.periodic-toolbar-main {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.periodic-selection-control {
+  min-width: 0;
+}
+
+.periodic-selection-control :where(.SegmentedControlOption) {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.periodic-selection-control :where(.SegmentedControlOption > span) {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.periodic-slider {
+  margin-inline: -0.125rem;
+}
+
+.periodic-slider :where(.Slider) {
+  min-height: 2.625rem;
+  padding-top: 0.95rem;
+  padding-bottom: 0.95rem;
+}
+
+.periodic-slider :where(.Track),
+.periodic-slider :where(.Range) {
+  height: 0.5rem;
+  border-radius: 9999px;
+}
+
+.periodic-slider :where(.Thumb) {
+  width: 1.25rem;
+  height: 1.25rem;
+  box-shadow:
+    0 0 0 0.22rem color-mix(in oklab, var(--slider-range-color, var(--green-500)) 18%, transparent),
+    inset 0 0 0 2px var(--slider-range-color, var(--green-500));
+}
+
+.periodic-slider :where(.Thumb):active {
+  transform: scale(1.05);
+}
+
 .periodic-sheet {
   width: 100%;
   box-sizing: border-box;
@@ -52,11 +126,26 @@
 .periodic-grid {
   position: relative;
   display: grid;
-  width: 100%;
+  min-width: var(--periodic-grid-min-width, 31rem);
+  width: max(100%, var(--periodic-grid-min-width, 31rem));
   box-sizing: border-box;
   grid-template-columns: repeat(18, minmax(0, 1fr));
   grid-template-rows: repeat(10, minmax(0, auto));
   gap: 1px;
+}
+
+.periodic-grid-scroll {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 0.25rem;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+
+.periodic-grid-scroll::-webkit-scrollbar {
+  height: 0.35rem;
 }
 
 .periodic-reaction-cluster {
@@ -91,6 +180,7 @@
 }
 
 .periodic-cell {
+  --periodic-cell-inset: clamp(2px, 0.22rem, 4px);
   --button-radius: 0.58rem;
   --selection-ring-border-width: 3px;
   --selection-ring-inner-width: 2px;
@@ -109,11 +199,53 @@
   align-items: center !important;
   justify-content: center !important;
   text-align: center !important;
+  overflow: hidden !important;
   opacity: 1 !important;
 }
 
 .periodic-cell::before {
   opacity: 1 !important;
+}
+
+.periodic-cell-number {
+  position: absolute;
+  inset-block-start: var(--periodic-cell-inset);
+  inset-inline-start: var(--periodic-cell-inset);
+  max-width: calc(100% - (var(--periodic-cell-inset) * 2));
+  font-size: clamp(0.38rem, 0.34rem + 0.15vw, 0.52rem);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.periodic-cell-symbol {
+  display: block;
+  max-width: calc(100% - (var(--periodic-cell-inset) * 2));
+  padding-inline: calc(var(--periodic-cell-inset) * 1.25);
+  font-size: clamp(0.58rem, 0.5rem + 0.22vw, 0.84rem);
+  font-weight: 700;
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.periodic-cell-index {
+  position: absolute;
+  inset-block-start: var(--periodic-cell-inset);
+  inset-inline-end: var(--periodic-cell-inset);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0.82rem;
+  height: 0.82rem;
+  padding: 0 0.12rem;
+  border-radius: 999px;
+  background: var(--color-background-info-solid, #2899ff);
+  color: #ffffff;
+  font-size: clamp(0.38rem, 0.34rem + 0.15vw, 0.5rem);
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 1px 3px color-mix(in oklab, #0f172a 18%, transparent);
 }
 
 .periodic-cell::after,
@@ -201,6 +333,20 @@
 
   .periodic-grid {
     gap: 2px;
+  }
+}
+
+@media (min-width: 430px) {
+  .periodic-toolbar-main {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+}
+
+@media (max-width: 380px) {
+  .periodic-selection-control {
+    --segmented-control-font-size: 0.75rem;
+    --segmented-control-option-gutter: 0.45rem;
   }
 }
 

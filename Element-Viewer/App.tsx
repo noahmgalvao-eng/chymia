@@ -55,7 +55,7 @@ function App() {
 
   const {
     handleToggleFullscreen,
-    handleInfoButtonClick,
+    triggerInfoButtonAction,
   } = useAppChatControls({
     requestDisplayMode,
     isFullscreen,
@@ -79,8 +79,18 @@ function App() {
   };
 
   const handleInfoButtonClickWithTelemetry = async (event: React.MouseEvent) => {
-    logEvent('AI_INFO_CLICK', getSimulationContext());
-    await handleInfoButtonClick(event);
+    event.stopPropagation();
+    const didTrigger = await triggerInfoButtonAction();
+    if (didTrigger) {
+      logEvent('AI_INFO_CLICK', getSimulationContext());
+    }
+  };
+
+  const triggerInfoButtonActionWithTelemetry = async () => {
+    const didTrigger = await triggerInfoButtonAction();
+    if (didTrigger) {
+      logEvent('AI_INFO_CLICK', getSimulationContext());
+    }
   };
 
   const handlePromptHelpClick = () => {
@@ -120,6 +130,7 @@ function App() {
       onCloseRecordingResults={controller.handleCloseRecordingResults}
       onContextMenuTemperatureChange={controller.handleContextMenuTemperatureChange}
       onInfoButtonClick={handleInfoButtonClickWithTelemetry}
+      onInfoButtonPress={triggerInfoButtonActionWithTelemetry}
       onInspect={controller.handleInspect}
       onOpenSidebarChange={controller.setSidebarOpen}
       onPeriodicTableButtonClick={controller.handlePeriodicTableButtonClick}

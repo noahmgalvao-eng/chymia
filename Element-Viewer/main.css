@@ -81,30 +81,42 @@
 
 .periodic-slider {
   margin-inline: -0.125rem;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .periodic-slider :where(.Slider) {
-  min-height: 2.625rem;
-  padding-top: 0.95rem;
-  padding-bottom: 0.95rem;
+  min-height: 3rem;
+  padding-top: 1.08rem;
+  padding-bottom: 1.08rem;
+  touch-action: none;
 }
 
 .periodic-slider :where(.Track),
 .periodic-slider :where(.Range) {
-  height: 0.5rem;
+  height: 0.6rem;
   border-radius: 9999px;
+  touch-action: none;
 }
 
 .periodic-slider :where(.Thumb) {
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 1.42rem;
+  height: 1.42rem;
+  touch-action: none;
   box-shadow:
-    0 0 0 0.22rem color-mix(in oklab, var(--slider-range-color, var(--green-500)) 18%, transparent),
+    0 0 0 0.28rem color-mix(in oklab, var(--slider-range-color, var(--green-500)) 18%, transparent),
     inset 0 0 0 2px var(--slider-range-color, var(--green-500));
 }
 
 .periodic-slider :where(.Thumb):active {
   transform: scale(1.05);
+}
+
+.periodic-slider-hitbox {
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .periodic-sheet {
@@ -206,10 +218,10 @@
 
 .periodic-cell-number {
   position: absolute;
-  inset-block-start: var(--periodic-cell-inset);
-  inset-inline-start: var(--periodic-cell-inset);
+  inset-block-start: calc(var(--periodic-cell-inset) + 1px);
+  inset-inline-start: calc(var(--periodic-cell-inset) + 1px);
   max-width: calc(100% - (var(--periodic-cell-inset) * 2));
-  font-size: clamp(0.22rem, 0.14rem + 0.45vw, 0.52rem);
+  font-size: clamp(0.22rem, 0.12rem + 0.48vw, 0.5rem);
   line-height: 1;
   white-space: nowrap;
   z-index: 1;
@@ -221,13 +233,14 @@
   inset-block-start: 58%;
   transform: translate(-50%, -50%);
   display: block;
-  max-width: calc(100% - (var(--periodic-cell-inset) * 3));
-  padding-inline: calc(var(--periodic-cell-inset) * 1.1);
-  font-size: clamp(0.34rem, 0.18rem + 0.8vw, 0.84rem);
+  max-width: calc(100% - (var(--periodic-cell-inset) * 2));
+  padding-inline: 0;
+  font-size: clamp(0.32rem, 0.16rem + 0.82vw, 0.84rem);
   font-weight: 700;
   line-height: 0.95;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  letter-spacing: -0.02em;
+  overflow: visible;
+  text-overflow: clip;
   white-space: nowrap;
   z-index: 1;
 }
@@ -362,6 +375,7 @@
 
   .periodic-cell-symbol {
     inset-block-start: 60%;
+    font-size: clamp(0.31rem, 0.14rem + 0.9vw, 0.72rem);
   }
 }
 
@@ -376,12 +390,15 @@
   }
 
   .periodic-cell-number {
-    font-size: 0.2rem;
+    inset-block-start: 2px;
+    inset-inline-start: 2px;
+    font-size: 0.19rem;
   }
 
   .periodic-cell-symbol {
     inset-block-start: 61%;
-    font-size: 0.32rem;
+    max-width: calc(100% - 2px);
+    font-size: 0.29rem;
   }
 
   .periodic-cell-index {

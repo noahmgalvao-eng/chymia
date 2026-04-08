@@ -13,7 +13,7 @@ import {
 } from '@openai/apps-sdk-ui/components/Icon';
 import { Popover } from '@openai/apps-sdk-ui/components/Popover';
 import { Tooltip } from '@openai/apps-sdk-ui/components/Tooltip';
-import type { MouseEvent } from 'react';
+import { useCallback, type MouseEvent, type TouchEvent } from 'react';
 import type { SimulationChromeLayout } from '../app/simulationLayout';
 import type { ContextMenuData } from '../app/appDefinitions';
 import type { RecordingResult } from '../hooks/useSimulationController';
@@ -49,6 +49,7 @@ export default function SimulationViewport({
   onCloseRecordingResults,
   onContextMenuTemperatureChange,
   onInfoButtonClick,
+  onInfoButtonPress,
   onInspect,
   onOpenSidebarChange,
   onPeriodicTableButtonClick,
@@ -88,6 +89,7 @@ export default function SimulationViewport({
   onCloseRecordingResults: () => void;
   onContextMenuTemperatureChange: (temperature: number) => void;
   onInfoButtonClick: (event: MouseEvent) => Promise<void>;
+  onInfoButtonPress: () => Promise<void>;
   onInspect: (element: ChemicalElement) => (event: MouseEvent, physics: PhysicsState) => void;
   onOpenSidebarChange: (open: boolean) => void;
   onPeriodicTableButtonClick: () => void;
@@ -107,6 +109,11 @@ export default function SimulationViewport({
   onToggleSpeed: (event: MouseEvent) => void;
 }) {
   const count = selectedElements.length;
+  const handleInfoButtonTouchEnd = useCallback((event: TouchEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    void onInfoButtonPress();
+  }, [onInfoButtonPress]);
 
   return (
     <>
@@ -217,7 +224,16 @@ export default function SimulationViewport({
 
           <Tooltip content={messages.app.controls.askChatGPTAboutSimulation} contentClassName={TOOLTIP_CLASS}>
             <span>
-              <Button color="info" variant="soft" pill uniform className={layout.desktopUniformButtonClass} onClick={onInfoButtonClick}>
+              <Button
+                color="info"
+                variant="soft"
+                pill
+                uniform
+                className={layout.desktopUniformButtonClass}
+                onClick={onInfoButtonClick}
+                onTouchEndCapture={handleInfoButtonTouchEnd}
+                style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+              >
                 <ChatTripleDots
                   style={{
                     ...layout.controlIconStyle,

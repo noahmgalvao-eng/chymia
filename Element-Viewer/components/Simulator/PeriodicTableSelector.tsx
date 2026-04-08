@@ -563,6 +563,11 @@ const PeriodicTableSelector: React.FC<Props> = ({
                 </div>
               </div>
               <div
+                className="periodic-slider-hitbox"
+                style={{ touchAction: 'none' }}
+                onTouchStart={() => activateSlider('temperature')}
+                onTouchEnd={handleTemperatureSliderRelease}
+                onTouchCancel={handleTemperatureSliderRelease}
                 onPointerDown={() => activateSlider('temperature')}
                 onPointerUp={handleTemperatureSliderRelease}
                 onPointerCancel={handleTemperatureSliderRelease}
@@ -618,6 +623,11 @@ const PeriodicTableSelector: React.FC<Props> = ({
                 </div>
               </div>
               <div
+                className="periodic-slider-hitbox"
+                style={{ touchAction: 'none' }}
+                onTouchStart={() => activateSlider('pressure')}
+                onTouchEnd={handlePressureSliderRelease}
+                onTouchCancel={handlePressureSliderRelease}
                 onPointerDown={() => activateSlider('pressure')}
                 onPointerUp={handlePressureSliderRelease}
                 onPointerCancel={handlePressureSliderRelease}

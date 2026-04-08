@@ -1,5 +1,5 @@
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { ChemicalElement, MatterState, PhysicsState, MatterRect, Bounds, ViewBoxDimensions } from '../types';
 import { SimulationMutableState } from './physics/types';
 import { calculateThermodynamics } from './physics/thermodynamics';
@@ -17,13 +17,44 @@ interface UsePhysicsProps {
   isPaused: boolean;
 }
 
+export interface UsePhysicsResult {
+  liveFrameRef: MutableRefObject<number>;
+  liveStateRef: MutableRefObject<PhysicsState>;
+  snapshot: PhysicsState;
+}
+
 const SAMPLE_MASS = 0.001; 
 const BASE_PARTICLE_COUNT = 50;
 const INIT_W = 134;
 const INIT_H = 134;
 const PARTICLE_DIAMETER = 12;
+const SNAPSHOT_FPS = 30;
+const SNAPSHOT_INTERVAL_MS = 1000 / SNAPSHOT_FPS;
 
-export const usePhysics = ({ element, temperature: targetEnvTemp, pressure, qualityScale = 1.0, viewBounds, timeScale, isPaused }: UsePhysicsProps): PhysicsState => {
+const createInitialPhysicsState = (initialBounds: Bounds, initialRect: MatterRect): PhysicsState => ({
+  simTime: 0,
+  state: MatterState.SOLID,
+  temperature: 0,
+  pressure: 101325,
+  enthalpy: 0,
+  boilingPointCurrent: 0,
+  meltingPointCurrent: 0,
+  sublimationPointCurrent: 0,
+  meltProgress: 0,
+  boilProgress: 0,
+  sublimationProgress: 0,
+  powerInput: 0,
+  particles: [],
+  pathProgress: 0,
+  compressionFactor: 1,
+  gasBounds: initialBounds,
+  meanParticleSpeed: 0,
+  matterRect: initialRect,
+  scfOpacity: 0,
+  scfTransitionProgress: 0,
+});
+
+export const usePhysics = ({ element, temperature: targetEnvTemp, pressure, qualityScale = 1.0, viewBounds, timeScale, isPaused }: UsePhysicsProps): UsePhysicsResult => {
   
   const effectiveParticleCount = Math.max(10, Math.floor(BASE_PARTICLE_COUNT * qualityScale));
 
@@ -40,6 +71,7 @@ export const usePhysics = ({ element, temperature: targetEnvTemp, pressure, qual
   const INIT_BOUNDS: Bounds = {
       minX: INIT_RECT.x, maxX: INIT_RECT.x + INIT_RECT.w, minY: INIT_RECT.y, maxY: INIT_RECT.y + INIT_RECT.h
   };
+  const initialOutputStateRef = useRef<PhysicsState>(createInitialPhysicsState(INIT_BOUNDS, INIT_RECT));
 
   const simState = useRef<SimulationMutableState>({
     enthalpy: 0, 
@@ -60,6 +92,15 @@ export const usePhysics = ({ element, temperature: targetEnvTemp, pressure, qual
     isTransitioning: false,
     scfTargetOpacity: 0,
     areAllParticlesSettled: true
+  });
+  const liveStateRef = useRef<PhysicsState>({
+    ...initialOutputStateRef.current,
+    particles: simState.current.particles,
+  });
+  const liveFrameRef = useRef(0);
+  const snapshotPublishMetaRef = useRef({
+    lastPublishedAt: performance.now(),
+    lastState: initialOutputStateRef.current,
   });
 
   useEffect(() => {
@@ -98,28 +139,7 @@ export const usePhysics = ({ element, temperature: targetEnvTemp, pressure, qual
     }
   }, [element.symbol]);
 
-  const [outputState, setOutputState] = useState<PhysicsState>({
-     simTime: 0,
-     state: MatterState.SOLID,
-     temperature: 0,
-     pressure: 101325,
-     enthalpy: 0,
-     boilingPointCurrent: 0,
-     meltingPointCurrent: 0,
-     sublimationPointCurrent: 0,
-     meltProgress: 0,
-     boilProgress: 0,
-     sublimationProgress: 0,
-     powerInput: 0,
-     particles: [],
-     pathProgress: 0,
-     compressionFactor: 1,
-     gasBounds: INIT_BOUNDS,
-     meanParticleSpeed: 0,
-     matterRect: INIT_RECT,
-     scfOpacity: 0,
-     scfTransitionProgress: 0
-  });
+  const [outputState, setOutputState] = useState<PhysicsState>(initialOutputStateRef.current);
 
   useEffect(() => {
     let frameId: number;
@@ -183,7 +203,7 @@ export const usePhysics = ({ element, temperature: targetEnvTemp, pressure, qual
 
        // 4. OUTPUT MAPPING
        simState.current.frameVersion += 1;
-       setOutputState({
+       const nextState: PhysicsState = {
            state: thermo.phase,
            temperature: thermo.currentTemp,
            pressure,
@@ -204,7 +224,25 @@ export const usePhysics = ({ element, temperature: targetEnvTemp, pressure, qual
            simTime: simState.current.simTime,
            scfOpacity: geometry.scfOpacity,
            scfTransitionProgress: thermo.scfTransitionProgress
-       });
+       };
+       liveStateRef.current = nextState;
+       liveFrameRef.current = simState.current.frameVersion;
+
+       const snapshotMeta = snapshotPublishMetaRef.current;
+       const shouldPublishSnapshot =
+           (now - snapshotMeta.lastPublishedAt) >= SNAPSHOT_INTERVAL_MS
+           || snapshotMeta.lastState.state !== nextState.state
+           || Math.abs(snapshotMeta.lastState.pathProgress - nextState.pathProgress) >= 0.04
+           || Math.abs(snapshotMeta.lastState.boilProgress - nextState.boilProgress) >= 0.025
+           || Math.abs(snapshotMeta.lastState.meltProgress - nextState.meltProgress) >= 0.025
+           || Math.abs(snapshotMeta.lastState.sublimationProgress - nextState.sublimationProgress) >= 0.025
+           || Math.abs(snapshotMeta.lastState.scfTransitionProgress - nextState.scfTransitionProgress) >= 0.025;
+
+       if (shouldPublishSnapshot) {
+           snapshotMeta.lastPublishedAt = now;
+           snapshotMeta.lastState = nextState;
+           setOutputState(nextState);
+       }
 
        frameId = requestAnimationFrame(loop);
     };
@@ -213,5 +251,9 @@ export const usePhysics = ({ element, temperature: targetEnvTemp, pressure, qual
     return () => cancelAnimationFrame(frameId);
   }, []);
 
-  return outputState;
+  return {
+    liveFrameRef,
+    liveStateRef,
+    snapshot: outputState,
+  };
 };

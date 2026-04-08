@@ -1,5 +1,5 @@
 
-import React, { useMemo, useEffect, useRef } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { ChemicalElement, ViewBoxDimensions, PhysicsState } from '../../types';
 import { usePhysics } from '../../hooks/usePhysics';
 import MatterVisualizer from './MatterVisualizer';
@@ -63,23 +63,27 @@ const SimulationUnit: React.FC<Props> = ({ element, globalTemp, globalPressure, 
 
   // --- Snapshot Registration ---
   // Store latest physics in a ref so the getter always returns fresh state without needing re-registration
-  const physicsRef = useRef(physics);
-  physicsRef.current = physics;
-
   useEffect(() => {
     if (onRegister) {
-      onRegister(element.atomicNumber, () => physicsRef.current);
+      onRegister(element.atomicNumber, () => {
+        const currentPhysics = physics.liveStateRef.current;
+        return {
+          ...currentPhysics,
+          particles: currentPhysics.particles.map((particle) => ({ ...particle })),
+        };
+      });
     }
-  }, [element.atomicNumber, onRegister]);
+  }, [element.atomicNumber, onRegister, physics.liveStateRef]);
 
   return (
     <div className="w-full h-full relative overflow-hidden">
       <MatterVisualizer
         element={element}
-        physics={physics}
+        liveFrameRef={physics.liveFrameRef}
+        livePhysicsRef={physics.liveStateRef}
+        physics={physics.snapshot}
         showParticles={showParticles}
         viewBounds={viewBox}
-        totalElements={totalElements}
         onInspect={onInspect}
       />
     </div>

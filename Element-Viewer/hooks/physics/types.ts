@@ -6,6 +6,7 @@ export interface ParticleFrameScratch {
     particleIdBySlot: Map<number, number>;
     liquidParticles: Particle[];
     gasParticles: Particle[];
+    stableGasParticles: Particle[];
     trappedParticles: Particle[];
     condensingParticles: Particle[];
     liquidParticlesWithoutSlot: Particle[];

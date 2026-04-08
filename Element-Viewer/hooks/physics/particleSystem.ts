@@ -37,6 +37,7 @@ export const createParticleFrameScratch = (): ParticleFrameScratch => ({
     particleIdBySlot: new Map(),
     liquidParticles: [],
     gasParticles: [],
+    stableGasParticles: [],
     trappedParticles: [],
     condensingParticles: [],
     liquidParticlesWithoutSlot: [],
@@ -399,6 +400,7 @@ export const updateParticleSystem = ({
         scratch.particleIdBySlot.clear();
         clearArray(scratch.liquidParticles);
         clearArray(scratch.gasParticles);
+        clearArray(scratch.stableGasParticles);
         clearArray(scratch.trappedParticles);
         clearArray(scratch.condensingParticles);
         clearArray(scratch.liquidParticlesWithoutSlot);
@@ -417,6 +419,9 @@ export const updateParticleSystem = ({
                 scratch.liquidParticles.push(particle);
             } else if (particle.state === ParticleState.GAS || particle.state === ParticleState.RISING) {
                 scratch.gasParticles.push(particle);
+                if (particle.state === ParticleState.GAS) {
+                    scratch.stableGasParticles.push(particle);
+                }
             }
         }
 
@@ -748,24 +753,11 @@ export const updateParticleSystem = ({
     if (isSublimation) {
         // Target Gas Count proportional to sublimation progress
         const targetGasCount = Math.floor(sublimationProgress * particleCount);
-        
-        // Count active gas + condensing (transitioning back) as "Gas Phase" for population control
-        const currentGasCount = simState.particles.filter(p => p.state === ParticleState.GAS || p.state === ParticleState.RISING || p.state === ParticleState.CONDENSING).length;
+        const currentGasCount = frameIndex.gasParticles.length + frameIndex.condensingParticles.length;
         
         // 1. Detach (Solid -> Gas)
         if (currentGasCount < targetGasCount) {
-             // Find Lowest ID Trapped (Topmost surface particle)
-             let candidate: Particle | null = null;
-             let minID = 999999;
-             for (const p of simState.particles) {
-                 if (p.state === ParticleState.TRAPPED) {
-                     if (p.id < minID) {
-                         minID = p.id;
-                         candidate = p;
-                     }
-                 }
-             }
-             
+             const candidate = frameIndex.trappedParticles[0] ?? null;
              if (candidate) {
                 candidate.state = ParticleState.RISING;
                 // Burst up with noise
@@ -775,21 +767,7 @@ export const updateParticleSystem = ({
         } 
         // 2. Deposition (Gas -> Solid)
         else if (currentGasCount > targetGasCount) {
-             // Find Highest ID Gas (Newest gas particle, corresponding to lowest lattice slot)
-             // We prioritize settling particles back into the "gap" just above the solid.
-             let candidate: Particle | null = null;
-             let maxID = -1;
-             
-             for (const p of simState.particles) {
-                 // Pick from GAS or RISING (free particles)
-                 if (p.state === ParticleState.GAS || p.state === ParticleState.RISING) {
-                     if (p.id > maxID) {
-                         maxID = p.id;
-                         candidate = p;
-                     }
-                 }
-             }
-
+             const candidate = frameIndex.gasParticles[frameIndex.gasParticles.length - 1] ?? null;
              if (candidate) {
                  candidate.state = ParticleState.CONDENSING;
                  candidate.vx *= 0.1;
@@ -799,27 +777,13 @@ export const updateParticleSystem = ({
 
         // Equilibrium Shuffle
         if (phase === MatterState.EQUILIBRIUM_SUB && Math.random() < 0.05 * timeScale) {
-             // Shuffle strictly at the boundary layer
-             // Lowest Trapped vs Highest Gas
-             let lowestTrapped: Particle | null = null;
-             let minID = 999999;
-             for (const p of simState.particles) {
-                 if (p.state === ParticleState.TRAPPED) {
-                     if (p.id < minID) {
-                         minID = p.id;
-                         lowestTrapped = p;
-                     }
-                 }
-             }
-
+             const lowestTrapped = frameIndex.trappedParticles[0] ?? null;
              let highestGas: Particle | null = null;
-             let maxID = -1;
-             for (const p of simState.particles) {
-                 if (p.state === ParticleState.GAS) { // Only swap settled gas
-                     if (p.id > maxID) {
-                         maxID = p.id;
-                         highestGas = p;
-                     }
+             for (let index = frameIndex.gasParticles.length - 1; index >= 0; index -= 1) {
+                 const candidate = frameIndex.gasParticles[index];
+                 if (candidate.state === ParticleState.GAS) {
+                     highestGas = candidate;
+                     break;
                  }
              }
              
@@ -835,17 +799,17 @@ export const updateParticleSystem = ({
     } else if (phase === MatterState.EQUILIBRIUM_TRIPLE) {
         // ... (Triple Point Logic) ...
         const targetGasCount = Math.floor(particleCount * 0.15);
-        const activeGasParticles = simState.particles.filter(p => p.state === ParticleState.GAS || p.state === ParticleState.RISING);
+        const activeGasCount = frameIndex.gasParticles.length;
         
-        if (activeGasParticles.length < targetGasCount) {
-             const trapped = simState.particles.find(p => p.state === ParticleState.TRAPPED);
+        if (activeGasCount < targetGasCount) {
+             const trapped = frameIndex.trappedParticles[0];
              if (trapped) {
                 trapped.state = ParticleState.RISING;
                 trapped.vx = (Math.random() - 0.5) * 50; 
                 trapped.vy = -50 - Math.random() * 50;
              }
-        } else if (activeGasParticles.length > targetGasCount) {
-             const gasCandidate = simState.particles.find(p => p.state === ParticleState.GAS);
+        } else if (activeGasCount > targetGasCount) {
+             const gasCandidate = frameIndex.stableGasParticles[0] ?? null;
              if (gasCandidate) {
                  gasCandidate.state = ParticleState.CONDENSING;
                  gasCandidate.vx *= 0.1;
@@ -854,8 +818,8 @@ export const updateParticleSystem = ({
         }
         
         if (Math.random() < 0.05 * timeScale) {
-             const trapped = simState.particles.find(p => p.state === ParticleState.TRAPPED);
-             const gasP = simState.particles.find(p => p.state === ParticleState.GAS);
+             const trapped = frameIndex.trappedParticles[0];
+             const gasP = frameIndex.stableGasParticles[0] ?? null;
              if (trapped && gasP) {
                  trapped.state = ParticleState.RISING;
                  trapped.vx = (Math.random() - 0.5) * 40; 
@@ -908,21 +872,22 @@ export const updateParticleSystem = ({
     } else if (isBoilingLike) {
         const targetGasCount = getDirectionalTargetGasCount(effectiveBoilProgress, phase);
         let gasCount = frameIndex.gasParticles.length;
+        let trappedCursor = 0;
+        let gasCursor = 0;
 
         while (gasCount < targetGasCount) {
-            const trapped = simState.particles.find((particle) => particle.state === ParticleState.TRAPPED);
+            const trapped = frameIndex.trappedParticles[trappedCursor];
             if (!trapped) {
                 break;
             }
 
             launchParticleIntoGas(trapped, 0, trapped.homeX, trapped.homeY);
+            trappedCursor += 1;
             gasCount += 1;
         }
 
         while (gasCount > targetGasCount && !isSCFMode) {
-            const gasCandidate = simState.particles.find(
-                (particle) => particle.state === ParticleState.GAS || particle.state === ParticleState.RISING,
-            );
+            const gasCandidate = frameIndex.gasParticles[gasCursor];
             if (!gasCandidate) {
                 break;
             }
@@ -930,6 +895,7 @@ export const updateParticleSystem = ({
             gasCandidate.state = ParticleState.CONDENSING;
             gasCandidate.vx *= 0.2;
             gasCandidate.vy = Math.max(80, Math.abs(gasCandidate.vy) * 0.35);
+            gasCursor += 1;
             gasCount -= 1;
         }
     }

@@ -1,22 +1,22 @@
 
-import React, { useMemo, useRef } from 'react';
-import { PhysicsState, ChemicalElement, MatterState, Particle, ParticleState, ViewBoxDimensions } from '../../types';
+import React, { useMemo, type MutableRefObject } from 'react';
+import { PhysicsState, ChemicalElement, MatterState, ParticleState, ViewBoxDimensions } from '../../types';
 import { interpolateColor, interpolateValue } from '../../utils/interpolator';
 import { getPhaseStatusLabel } from '../../app/appDefinitions';
 import { useI18n } from '../../i18n';
 import {
     getMatterPathFromProgress,
     getMatterRenderTransform,
-    getParticleVibration,
 } from '../../utils/evaporationLayout';
-import { createSpatialGrid, forEachSpatialGridPair, insertSpatialGridIndex, resetSpatialGrid } from '../../utils/spatialGrid';
+import ParticleCanvasLayer from './ParticleCanvasLayer';
 
 interface Props {
     physics: PhysicsState;
     element: ChemicalElement;
+    livePhysicsRef: MutableRefObject<PhysicsState>;
+    liveFrameRef: MutableRefObject<number>;
     showParticles: boolean;
     viewBounds: ViewBoxDimensions;
-    totalElements: number;
     onInspect?: (e: React.MouseEvent, physics: PhysicsState) => void;
 }
 
@@ -83,74 +83,17 @@ const tuneColorForTheme = (hexColor: string, isDarkTheme: boolean) => {
 
 const APPS_UI_FONT_STACK = 'ui-sans-serif, -apple-system, system-ui, "Segoe UI", "Noto Sans", "Helvetica", "Arial", sans-serif';
 
-const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
-
-const smoothstep = (value: number) => {
-    const t = clamp01(value);
-    return t * t * (3 - (2 * t));
-};
-const PARTICLE_RENDER_GRID_CELL_SIZE = 14;
-const FILTER_STEP_HZ = 10;
-
-const getTrappedParticleAnchor = (
-    particle: Particle,
-    state: MatterState,
-    meltProgress: number,
-) => {
-    const hasLiquidTarget =
-        Number.isFinite(particle.liquidTargetX) && Number.isFinite(particle.liquidTargetY);
-
-    if (!hasLiquidTarget) {
-        return { x: particle.homeX, y: particle.homeY };
-    }
-
-    if (state === MatterState.MELTING || state === MatterState.EQUILIBRIUM_MELT) {
-        const easedProgress = smoothstep(meltProgress);
-        return {
-            x: interpolateValue(particle.homeX, particle.liquidTargetX ?? particle.homeX, easedProgress),
-            y: interpolateValue(particle.homeY, particle.liquidTargetY ?? particle.homeY, easedProgress),
-        };
-    }
-
-    if (
-        state === MatterState.LIQUID
-        || state === MatterState.BOILING
-        || state === MatterState.EQUILIBRIUM_BOIL
-        || state === MatterState.TRANSITION_SCF
-        || state === MatterState.GAS
-    ) {
-        return {
-            x: particle.liquidTargetX ?? particle.homeX,
-            y: particle.liquidTargetY ?? particle.homeY,
-        };
-    }
-
-    return { x: particle.homeX, y: particle.homeY };
-};
-
-const shouldResolveParticleVisually = (particle: Particle, showParticles: boolean) => (
-    (particle.state === ParticleState.TRAPPED && showParticles)
-    || particle.state === ParticleState.RISING
-    || particle.state === ParticleState.CONDENSING
-);
-
-const isMeltLikeState = (state: MatterState) => (
-    state === MatterState.MELTING || state === MatterState.EQUILIBRIUM_MELT
-);
-
-const getTrappedJitterScale = (state: MatterState, meltProgress: number) => {
-    if (!isMeltLikeState(state)) {
-        return 1;
-    }
-
-    return interpolateValue(0.16, 0.28, smoothstep(meltProgress));
-};
-
-const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, viewBounds, totalElements, onInspect }) => {
+const MatterVisualizer: React.FC<Props> = ({
+    physics,
+    element,
+    livePhysicsRef,
+    liveFrameRef,
+    showParticles,
+    viewBounds,
+    onInspect,
+}) => {
     const { messages } = useI18n();
-    const { pathProgress, state, particles, boilProgress, meltProgress, matterRect, gasBounds, scfOpacity, simTime, sublimationProgress, powerInput } = physics;
-    const trappedParticleRenderCacheRef = useRef<Map<number, { x: number; y: number }>>(new Map());
-    const particleRenderGridRef = useRef(createSpatialGrid(PARTICLE_RENDER_GRID_CELL_SIZE));
+    const { pathProgress, state, particles, boilProgress, meltProgress, matterRect, gasBounds, sublimationProgress, powerInput } = physics;
 
     // --- 1. SVG Path Interpolator (Puddle / Solid) ---
     const currentPath = useMemo(() => getMatterPathFromProgress(pathProgress, 0.01), [pathProgress]);
@@ -217,178 +160,6 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
         [matterRect, meltProgress, state],
     );
 
-    const shouldResolveParticleOverlaps =
-        [
-            MatterState.SOLID,
-            MatterState.MELTING,
-            MatterState.EQUILIBRIUM_MELT,
-            MatterState.LIQUID,
-            MatterState.BOILING,
-            MatterState.EQUILIBRIUM_BOIL,
-            MatterState.EQUILIBRIUM_TRIPLE,
-            MatterState.TRANSITION_SCF,
-            MatterState.GAS,
-        ].includes(state);
-
-    const particleRenderMap = useMemo(() => {
-        const resolved = new Map<number, { x: number; y: number }>();
-        if (!shouldResolveParticleOverlaps) {
-            trappedParticleRenderCacheRef.current = new Map();
-            return resolved;
-        }
-
-        const visibleParticles = particles.filter((particle) => shouldResolveParticleVisually(particle, showParticles));
-        if (visibleParticles.length === 0) {
-            trappedParticleRenderCacheRef.current = new Map();
-            return resolved;
-        }
-
-        const isMeltLike = isMeltLikeState(state);
-        const isBoilingLike = state === MatterState.BOILING || state === MatterState.EQUILIBRIUM_BOIL;
-        const trappedJitterScale = getTrappedJitterScale(state, meltProgress);
-        const previousTrappedRenderCache = trappedParticleRenderCacheRef.current;
-        const nextTrappedRenderCache = new Map<number, { x: number; y: number }>();
-        const grid = particleRenderGridRef.current;
-        const nodes: Array<{
-            id: number;
-            state: ParticleState;
-            r: number;
-            x: number;
-            y: number;
-            targetX: number;
-            targetY: number;
-        }> = visibleParticles.map((particle) => {
-            let targetX = particle.x;
-            let targetY = particle.y;
-
-            if (particle.state === ParticleState.TRAPPED) {
-                const anchor = getTrappedParticleAnchor(particle, state, meltProgress);
-                const vibration = getParticleVibration(particle.id, physics.simTime, physics.temperature);
-                targetX = anchor.x + (vibration.x * trappedJitterScale);
-                targetY = anchor.y + (vibration.y * trappedJitterScale);
-
-                if (isMeltLike) {
-                    const previous = previousTrappedRenderCache.get(particle.id);
-                    if (previous) {
-                        const smoothing = interpolateValue(0.22, 0.3, smoothstep(meltProgress));
-                        targetX = interpolateValue(previous.x, targetX, smoothing);
-                        targetY = interpolateValue(previous.y, targetY, smoothing);
-                    }
-                }
-            }
-
-            return {
-                id: particle.id,
-                state: particle.state,
-                r: particle.r,
-                x: targetX,
-                y: targetY,
-                targetX,
-                targetY,
-            };
-        });
-
-        const overlapTolerance = 1e-3;
-        const distanceEpsilon = 1e-6;
-        const overlapNodes = isBoilingLike
-            ? nodes.filter((node) => node.state !== ParticleState.TRAPPED)
-            : nodes;
-
-        const applySeparationPass = (): number => {
-            resetSpatialGrid(grid, PARTICLE_RENDER_GRID_CELL_SIZE);
-            for (let index = 0; index < overlapNodes.length; index += 1) {
-                const node = overlapNodes[index];
-                insertSpatialGridIndex(grid, index, node.x, node.y);
-            }
-
-            let maxOverlap = 0;
-
-            forEachSpatialGridPair(grid, (firstIndex, secondIndex) => {
-                const p1 = overlapNodes[firstIndex];
-                const p2 = overlapNodes[secondIndex];
-                if (!p1 || !p2) return;
-
-                const dx = p2.x - p1.x;
-                const dy = p2.y - p1.y;
-                const minDist = p1.r + p2.r;
-                const minDistSq = minDist * minDist;
-                const distSq = (dx * dx) + (dy * dy);
-
-                if (distSq >= minDistSq) return;
-
-                let nx = 1;
-                let ny = 0;
-                let dist = Math.sqrt(distSq);
-
-                if (dist > distanceEpsilon) {
-                    nx = dx / dist;
-                    ny = dy / dist;
-                } else {
-                    const seed = (p1.id * 92821) + (p2.id * 68917);
-                    const angle = (seed % 360) * (Math.PI / 180);
-                    nx = Math.cos(angle);
-                    ny = Math.sin(angle);
-                    dist = 0;
-                }
-
-                const overlap = minDist - dist;
-                if (overlap > maxOverlap) {
-                    maxOverlap = overlap;
-                }
-
-                const isBothTrapped = p1.state === ParticleState.TRAPPED && p2.state === ParticleState.TRAPPED;
-                const correctionStrength = isMeltLike && isBothTrapped ? 0.18 : 0.5;
-                const correction = overlap * correctionStrength;
-
-                p1.x -= nx * correction;
-                p1.y -= ny * correction;
-                p2.x += nx * correction;
-                p2.y += ny * correction;
-            });
-
-            return maxOverlap;
-        };
-
-        const relaxationPasses = overlapNodes.length > 1 ? 2 : 0;
-        const targetBlend = isMeltLike ? 0.26 : 0.15;
-        const finalPassLimit = overlapNodes.length > 1 ? 1 : 0;
-
-        for (let iter = 0; iter < relaxationPasses; iter += 1) {
-            applySeparationPass();
-
-            for (const node of overlapNodes) {
-                node.x = interpolateValue(node.x, node.targetX, targetBlend);
-                node.y = interpolateValue(node.y, node.targetY, targetBlend);
-            }
-        }
-
-        for (let pass = 0; pass < finalPassLimit; pass += 1) {
-            const maxOverlap = applySeparationPass();
-            if (maxOverlap < overlapTolerance) {
-                break;
-            }
-        }
-
-        for (const node of nodes) {
-            resolved.set(node.id, { x: node.x, y: node.y });
-            if (node.state === ParticleState.TRAPPED) {
-                nextTrappedRenderCache.set(node.id, { x: node.x, y: node.y });
-            }
-        }
-
-        trappedParticleRenderCacheRef.current = nextTrappedRenderCache;
-
-        return resolved;
-    }, [
-        meltProgress,
-        particles,
-        physics.simTime,
-        physics.temperature,
-        showParticles,
-        state,
-        shouldResolveParticleOverlaps,
-    ]);
-
     // --- VISIBILITY LOGIC ---
     const hasTrappedParticles = particles.some((particle) => particle.state === ParticleState.TRAPPED);
 
@@ -409,52 +180,6 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
         ((state === MatterState.SUBLIMATION || state === MatterState.EQUILIBRIUM_SUB) && sublimationProgress < 1.0);
 
     const puddleOpacity = shouldShowPuddle && pathProgress < 9.9 ? bulkVisuals.opacity : 0;
-
-    // --- Turbulence Scale Logic (Gradient based on Temperature) ---
-    let displacementScale = 0;
-
-    if (state === MatterState.SOLID || state === MatterState.MELTING || state === MatterState.EQUILIBRIUM_MELT) {
-        displacementScale = 0;
-    } else if (state === MatterState.LIQUID) {
-        displacementScale = 0;
-    } else if (state === MatterState.EQUILIBRIUM_TRIPLE) {
-        displacementScale = 0.8;
-    } else if (state === MatterState.BOILING || state === MatterState.EQUILIBRIUM_BOIL || state === MatterState.TRANSITION_SCF) {
-        displacementScale = 5 + (boilProgress * 15);
-    } else if (state === MatterState.SUBLIMATION || state === MatterState.EQUILIBRIUM_SUB) {
-        // Mild shimmer for Sublimation
-        displacementScale = 2 + (sublimationProgress * 2);
-    } else {
-        displacementScale = 0;
-    }
-
-    // --- ANIMATION VALUES ---
-    const filterTime = Math.floor(simTime * FILTER_STEP_HZ) / FILTER_STEP_HZ;
-    const hazeFreq = 0.02 + (0.01 * Math.abs(Math.sin(filterTime * 0.3)));
-    const boilingSeed = Math.floor(filterTime * 60) % 100;
-    const steamFreq = 0.02 + (0.005 * Math.abs(Math.sin(filterTime * 0.5)));
-    const scfSeed = Math.floor(filterTime * 20) % 100;
-    const scfNoiseSeed = Math.floor(filterTime * 15) % 100;
-
-    // --- FILTER ACTIVATION LOGIC ---
-    const showBoilingEffect =
-        state === MatterState.BOILING ||
-        state === MatterState.EQUILIBRIUM_BOIL ||
-        state === MatterState.TRANSITION_SCF ||
-        state === MatterState.EQUILIBRIUM_TRIPLE ||
-        state === MatterState.SUBLIMATION ||
-        state === MatterState.EQUILIBRIUM_SUB;
-
-    const showSteamBlur =
-        state === MatterState.BOILING ||
-        state === MatterState.EQUILIBRIUM_BOIL ||
-        state === MatterState.TRANSITION_SCF ||
-        state === MatterState.EQUILIBRIUM_TRIPLE ||
-        state === MatterState.SUBLIMATION ||
-        state === MatterState.EQUILIBRIUM_SUB;
-    const particleLayerFilter = displacementScale > 0
-        ? `url(#heatHaze-${element.symbol})`
-        : undefined;
 
     const isMetallic = ['metal', 'metalloid'].includes(element.category);
     const viewBoxString = `${viewBounds.minX} ${viewBounds.minY} ${viewBounds.width} ${viewBounds.height}`;
@@ -559,16 +284,41 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
 
         return 'var(--color-text-secondary)';
     }, [state]);
+    const canvasPalette = useMemo(() => ({
+        solidColor: adjustedSolidColor,
+        liquidColor: adjustedLiquidColor,
+        gasColor: adjustedGasColor,
+        solidOpacity: solid.opacidade,
+        liquidOpacity: liquid.opacidade,
+        gasOpacity: gas.opacidade,
+    }), [
+        adjustedGasColor,
+        adjustedLiquidColor,
+        adjustedSolidColor,
+        gas.opacidade,
+        liquid.opacidade,
+        solid.opacidade,
+    ]);
 
     const handleInteraction = (e: React.MouseEvent) => {
         if (onInspect) {
             e.stopPropagation();
-            onInspect(e, physics);
+            onInspect(e, {
+                ...livePhysicsRef.current,
+                particles: livePhysicsRef.current.particles.map((particle) => ({ ...particle })),
+            });
         }
     };
 
     return (
-        <div className="w-full h-full flex items-center justify-center relative overflow-hidden select-none">
+        <div className="relative h-full w-full overflow-hidden select-none">
+            <ParticleCanvasLayer
+                liveFrameRef={liveFrameRef}
+                livePhysicsRef={livePhysicsRef}
+                palette={canvasPalette}
+                showParticles={showParticles}
+                viewBounds={viewBounds}
+            />
 
             <svg
                 width="100%"
@@ -576,7 +326,7 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
                 viewBox={viewBoxString}
                 preserveAspectRatio="xMidYMid meet"
                 xmlns="http://www.w3.org/2000/svg"
-                className="w-full h-full z-10"
+                className="absolute inset-0 z-10 h-full w-full"
             >
                 <defs>
                     <radialGradient id={`metalSpot-${element.symbol}`} cx="30%" cy="30%" r="80%" fx="20%" fy="20%">
@@ -594,80 +344,25 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
                     <filter id={`contactShadow-${element.symbol}`}>
                         <feGaussianBlur in="SourceGraphic" stdDeviation="6" />
                     </filter>
-
-                    <filter id={`heatHaze-${element.symbol}`}>
-                        <feTurbulence type="fractalNoise" baseFrequency={hazeFreq} numOctaves="2" result="noise" />
-                        <feDisplacementMap in="SourceGraphic" in2="noise" scale={displacementScale > 5 ? 5 : 0} />
-                    </filter>
-
-                    <filter id={`boilingEffect-${element.symbol}`} x="-20%" y="-20%" width="140%" height="140%">
-                        <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" seed={boilingSeed} />
-                        <feDisplacementMap in="SourceGraphic" scale={displacementScale} xChannelSelector="R" yChannelSelector="G" />
-                    </filter>
-
-                    <filter id={`steamBlur-${element.symbol}`} x="-200%" y="-200%" width="500%" height="500%" filterUnits="objectBoundingBox">
-                        <feTurbulence type="fractalNoise" baseFrequency={steamFreq} numOctaves="4" seed="2" result="cloudNoise" />
-                        <feDisplacementMap in="SourceGraphic" in2="cloudNoise" scale="80" xChannelSelector="R" yChannelSelector="G" result="puddleExplosion" />
-                        <feComposite operator="in" in="cloudNoise" in2="puddleExplosion" result="texturedVapor" />
-                        <feOffset in="texturedVapor" dx="0" dy="-30" result="risingVapor" />
-                        <feGaussianBlur in="risingVapor" stdDeviation="18" result="finalGasRaw" />
-                        <feMorphology in="SourceAlpha" operator="dilate" radius="60" result="expandedBase" />
-                        <feGaussianBlur in="expandedBase" stdDeviation="40" result="softFadeMask" />
-                        <feComposite in="finalGasRaw" in2="softFadeMask" operator="in" result="finalGasFaded" />
-                        <feColorMatrix in="finalGasFaded" type="matrix" values="1 0 0 0 0.95 0 1 0 0 0.95 0 0 1 0 0.95 0 0 0 1 0" />
-                    </filter>
-
-                    {/* SUPERCRITICAL NEBULA NOISE FILTER (Organic Cloud) */}
-                    <filter id={`scfNoise-${element.symbol}`} x="-20%" y="-20%" width="140%" height="140%">
-                        {/* 1. Internal Texture */}
-                        <feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="3" seed={scfNoiseSeed} result="noise" />
-                        <feColorMatrix in="noise" type="matrix" values="1 0 0 0 0.9   0 1 0 0 0.9   0 0 1 0 0.9  0 0 0 1 0" result="coloredNoise" />
-
-                        {/* 2. Soft Mask Generation */}
-                        <feGaussianBlur in="SourceAlpha" stdDeviation="15" result="softEdge" />
-                        <feComposite in="coloredNoise" in2="softEdge" operator="in" result="softCloud" />
-
-                        {/* 3. Edge Distortion */}
-                        <feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed={scfSeed} result="edgeNoise" />
-                        <feDisplacementMap in="softCloud" in2="edgeNoise" scale="20" xChannelSelector="R" yChannelSelector="G" />
-                    </filter>
                 </defs>
 
-                {/* Dynamic Pressure Volume Box / Background (Bounds) */}
                 {(state === MatterState.GAS || state === MatterState.BOILING || state === MatterState.EQUILIBRIUM_BOIL || state === MatterState.EQUILIBRIUM_TRIPLE || state === MatterState.SUPERCRITICAL || state === MatterState.TRANSITION_SCF || state === MatterState.SUBLIMATION || state === MatterState.EQUILIBRIUM_SUB) && gasBounds && (
-                    <>
-                        {/* 1. SUPERCRITICAL FOG LAYER (NEBULA) */}
-                        <rect
-                            x={gasBounds.minX - 20}
-                            y={gasBounds.minY - 20}
-                            width={(gasBounds.maxX - gasBounds.minX) + 40}
-                            height={(gasBounds.maxY - gasBounds.minY) + 40}
-                            fill={adjustedGasColor}
-                            opacity={scfOpacity}
-                            filter={`url(#scfNoise-${element.symbol})`}
-                            className="transition-opacity duration-300"
-                            pointerEvents="none"
-                        />
-
-                        {/* 2. Dotted Outline - Fixed real-time sync by removing CSS transitions on geometry */}
-                        <rect
-                            x={gasBounds.minX}
-                            y={gasBounds.minY}
-                            width={gasBounds.maxX - gasBounds.minX}
-                            height={gasBounds.maxY - gasBounds.minY}
-                            fill="transparent"
-                            stroke="#64748b"
-                            strokeWidth="2"
-                            strokeDasharray="6,6"
-                            opacity={0.1}
-                            pointerEvents="all"
-                            onClick={handleInteraction}
-                            className="cursor-help"
-                        />
-                    </>
+                    <rect
+                        x={gasBounds.minX}
+                        y={gasBounds.minY}
+                        width={gasBounds.maxX - gasBounds.minX}
+                        height={gasBounds.maxY - gasBounds.minY}
+                        fill="transparent"
+                        stroke="#64748b"
+                        strokeWidth="2"
+                        strokeDasharray="6,6"
+                        opacity={0.1}
+                        pointerEvents="all"
+                        onClick={handleInteraction}
+                        className="cursor-help"
+                    />
                 )}
 
-                {/* --- BULK MATTER (PUDDLE) GROUP --- */}
                 <g transform={`translate(${centerX}, ${centerY}) scale(${scaleX}, ${scaleY})`}>
                     <path
                         d={currentPath}
@@ -678,26 +373,14 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
 
                     <path
                         d={currentPath}
-                        fill={adjustedGasColor}
-                        filter={`url(#steamBlur-${element.symbol})`}
-                        opacity={showSteamBlur && puddleOpacity > 0 ? 1 : 0}
-                        className="transition-opacity duration-700"
-                        pointerEvents="none"
-                    />
-
-                    {/* 1. BASE MATERIAL LAYER (Interactive) */}
-                    <path
-                        d={currentPath}
                         fill={bulkVisuals.fill}
-                        stroke={isMetallic ? "rgba(255,255,255,0.4)" : "#475569"}
+                        stroke={isMetallic ? 'rgba(255,255,255,0.4)' : '#475569'}
                         strokeWidth="0.5"
                         opacity={puddleOpacity}
-                        filter={showBoilingEffect ? `url(#boilingEffect-${element.symbol})` : undefined}
-                        className="transition-colors duration-200 cursor-help"
+                        className="cursor-help transition-colors duration-200"
                         onClick={handleInteraction}
                     />
 
-                    {/* 2. SPECULAR SHINE LAYERS */}
                     {isMetallic && state !== MatterState.GAS && state !== MatterState.SUPERCRITICAL && state !== MatterState.SUBLIMATION && state !== MatterState.EQUILIBRIUM_SUB && (
                         <>
                             <path
@@ -706,7 +389,6 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
                                 style={{ mixBlendMode: 'overlay' }}
                                 opacity={puddleOpacity}
                                 pointerEvents="none"
-                                filter={showBoilingEffect ? `url(#boilingEffect-${element.symbol})` : undefined}
                             />
                             <path
                                 d={currentPath}
@@ -714,87 +396,26 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
                                 style={{ mixBlendMode: 'overlay' }}
                                 opacity={puddleOpacity}
                                 pointerEvents="none"
-                                filter={showBoilingEffect ? `url(#boilingEffect-${element.symbol})` : undefined}
                             />
                         </>
                     )}
                 </g>
+            </svg>
 
-                {/* --- PARTICLE SYSTEM LAYER --- */}
-                <g filter={particleLayerFilter} pointerEvents="none">
-                    {particles.map((p) => {
-                        // VISIBILITY FIX:
-                        // Only hide particles if they are TRAPPED inside the bulk solid/liquid.
-                        // Free floating (GAS, RISING) or Condensing particles should be visible.
-                        const isHiddenStrict = !showParticles && p.state === ParticleState.TRAPPED;
-
-                        if (isHiddenStrict) return null;
-
-                        let fill = adjustedGasColor;
-                        let opacity = gas.opacidade;
-                        let renderX = p.x;
-                        let renderY = p.y;
-
-                        if (p.state === ParticleState.RISING || p.state === ParticleState.CONDENSING) {
-                            fill = adjustedLiquidColor;
-                            opacity = liquid.opacidade;
-                        }
-
-                        if (state === MatterState.SUBLIMATION || state === MatterState.EQUILIBRIUM_SUB) {
-                            if (p.state === ParticleState.RISING || p.state === ParticleState.CONDENSING) {
-                                fill = adjustedGasColor; // Sublimation creates gas directly, and condensation is gas -> solid
-                                opacity = gas.opacidade;
-                            }
-                        }
-
-                        if (p.state === ParticleState.TRAPPED) {
-                            fill = state === MatterState.SOLID || state === MatterState.SUBLIMATION || state === MatterState.EQUILIBRIUM_SUB ? adjustedSolidColor : adjustedLiquidColor;
-                            opacity = 0.9;
-
-                            const resolvedParticlePosition = particleRenderMap.get(p.id);
-                            if (resolvedParticlePosition) {
-                                renderX = resolvedParticlePosition.x;
-                                renderY = resolvedParticlePosition.y;
-                            } else {
-                                const anchor = getTrappedParticleAnchor(p, state, meltProgress);
-                                const vibration = getParticleVibration(p.id, physics.simTime, physics.temperature);
-                                const jitterScale = getTrappedJitterScale(state, meltProgress);
-                                renderX = anchor.x + (vibration.x * jitterScale);
-                                renderY = anchor.y + (vibration.y * jitterScale);
-                            }
-                        } else {
-                            const resolvedParticlePosition = particleRenderMap.get(p.id);
-                            if (resolvedParticlePosition) {
-                                renderX = resolvedParticlePosition.x;
-                                renderY = resolvedParticlePosition.y;
-                            }
-                        }
-
-                        return (
-                            <circle
-                                key={p.id}
-                                cx={renderX}
-                                cy={renderY}
-                                r={p.r}
-                                fill={fill}
-                                opacity={opacity}
-                                className="transition-opacity duration-300"
-                                stroke={p.state === ParticleState.TRAPPED ? 'rgba(0,0,0,0.2)' : 'none'}
-                                strokeWidth="0.5"
-                            />
-                        );
-                    })}
-                </g>
-
-                {/* --- HUD: CENTERED IDENTITY & MOLECULAR STATUS --- */}
+            <svg
+                width="100%"
+                height="100%"
+                viewBox={viewBoxString}
+                preserveAspectRatio="xMidYMid meet"
+                xmlns="http://www.w3.org/2000/svg"
+                className="absolute inset-0 z-30 h-full w-full"
+            >
                 <g
                     transform={`translate(${hudCenterX}, ${hudTopY})`}
                     pointerEvents="all"
                     className="cursor-pointer hover:opacity-80 transition-opacity"
                     onClick={handleInteraction}
                 >
-
-                    {/* 1. Identity Shape */}
                     {identityVisual.shape === 'capsule' ? (
                         <rect
                             x={-identityVisual.width / 2}
@@ -820,7 +441,6 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
                         />
                     )}
 
-                    {/* 2. Identity Label */}
                     <text
                         x="0"
                         y={identityVisual.textY}
@@ -839,7 +459,6 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
                         {identityLabel}
                     </text>
 
-                    {/* 3. Phase Status */}
                     <text
                         y={identityVisual.statusY}
                         textAnchor="middle"
@@ -855,7 +474,6 @@ const MatterVisualizer: React.FC<Props> = ({ physics, element, showParticles, vi
                         {phaseStatusLabel}
                     </text>
                 </g>
-
             </svg>
         </div>
     );

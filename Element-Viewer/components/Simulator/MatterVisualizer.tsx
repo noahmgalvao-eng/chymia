@@ -303,10 +303,7 @@ const MatterVisualizer: React.FC<Props> = ({
     const handleInteraction = (e: React.MouseEvent) => {
         if (onInspect) {
             e.stopPropagation();
-            onInspect(e, {
-                ...livePhysicsRef.current,
-                particles: livePhysicsRef.current.particles.map((particle) => ({ ...particle })),
-            });
+            onInspect(e, { ...livePhysicsRef.current });
         }
     };
 
@@ -408,7 +405,7 @@ const MatterVisualizer: React.FC<Props> = ({
                 viewBox={viewBoxString}
                 preserveAspectRatio="xMidYMid meet"
                 xmlns="http://www.w3.org/2000/svg"
-                className="absolute inset-0 z-30 h-full w-full"
+                className="pointer-events-none absolute inset-0 z-30 h-full w-full"
             >
                 <g
                     transform={`translate(${hudCenterX}, ${hudTopY})`}

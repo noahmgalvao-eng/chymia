@@ -54,6 +54,7 @@ export function useWidgetStateSync({
   const reactionProductsCacheRef = useRef<ChemicalElement[]>(reactionProductsCache);
   const localeRef = useRef(locale);
   const syncStateToChatGPTRef = useRef<() => Promise<void>>(async () => {});
+  const scheduledSyncRef = useRef<{ raf1: number; raf2: number }>({ raf1: 0, raf2: 0 });
 
   useEffect(() => {
     reactionProductsCacheRef.current = reactionProductsCache;
@@ -97,13 +98,31 @@ export function useWidgetStateSync({
 
   syncStateToChatGPTRef.current = syncStateToChatGPT;
 
+  const cancelScheduledSyncStateToChatGPT = useCallback(() => {
+    const scheduled = scheduledSyncRef.current;
+    if (scheduled.raf1) {
+      cancelAnimationFrame(scheduled.raf1);
+      scheduled.raf1 = 0;
+    }
+
+    if (scheduled.raf2) {
+      cancelAnimationFrame(scheduled.raf2);
+      scheduled.raf2 = 0;
+    }
+  }, []);
+
   const scheduleSyncStateToChatGPT = useCallback(() => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
+    cancelScheduledSyncStateToChatGPT();
+
+    const scheduled = scheduledSyncRef.current;
+    scheduled.raf1 = requestAnimationFrame(() => {
+      scheduled.raf1 = 0;
+      scheduled.raf2 = requestAnimationFrame(() => {
+        scheduled.raf2 = 0;
         void syncStateToChatGPTRef.current();
       });
     });
-  }, []);
+  }, [cancelScheduledSyncStateToChatGPT]);
 
   useEffect(() => {
     let cancelled = false;
@@ -121,8 +140,9 @@ export function useWidgetStateSync({
       cancelled = true;
       cancelAnimationFrame(raf1);
       cancelAnimationFrame(raf2);
+      cancelScheduledSyncStateToChatGPT();
     };
-  }, []);
+  }, [cancelScheduledSyncStateToChatGPT]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent } from 'react';
+import { startTransition, useEffect, useRef, useState, type MouseEvent } from 'react';
 import type { ContextMenuData } from '../app/appDefinitions';
 import {
   collapseSelectionForSingleMode,
@@ -153,7 +153,10 @@ export function useSimulationController({
     });
 
     if (didChange) {
-      setSelectedElements(nextSelection);
+      startTransition(() => {
+        setSelectedElements(nextSelection);
+        setContextMenu(null);
+      });
       logEvent('ELEMENT_SELECT', {
         atomicNumber: element.atomicNumber,
         symbol: element.symbol,
@@ -162,6 +165,7 @@ export function useSimulationController({
         selectedAtomicNumbers: getSelectedAtomicNumbers(nextSelection),
       });
       scheduleSyncStateToChatGPT();
+      return;
     }
 
     setContextMenu(null);
@@ -284,6 +288,14 @@ export function useSimulationController({
     setContextMenu(null);
   };
 
+  const handleTemperatureCommit = () => {
+    scheduleSyncStateToChatGPT();
+  };
+
+  const handlePressureCommit = () => {
+    scheduleSyncStateToChatGPT();
+  };
+
   const handleCloseRecordingResults = () => {
     setRecordingResults(null);
   };
@@ -319,5 +331,7 @@ export function useSimulationController({
     handleCloseContextMenu,
     handleContextMenuTemperatureChange,
     handleCloseRecordingResults,
+    handleTemperatureCommit,
+    handlePressureCommit,
   };
 }

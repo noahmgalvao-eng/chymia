@@ -59,6 +59,8 @@ export default function SimulationViewport({
   onSetPressure,
   onSetShowParticles,
   onSetTemperature,
+  onPressureCommit,
+  onTemperatureCommit,
   onToggleFullscreen,
   onToggleMultiSelect,
   onTogglePause,
@@ -96,6 +98,8 @@ export default function SimulationViewport({
   onSetPressure: (pressure: number) => void;
   onSetShowParticles: (showParticles: boolean) => void;
   onSetTemperature: (temperature: number) => void;
+  onPressureCommit: () => void;
+  onTemperatureCommit: () => void;
   onToggleFullscreen: (event: MouseEvent) => Promise<void>;
   onToggleMultiSelect: () => void;
   onTogglePause: (event: MouseEvent) => void;
@@ -118,8 +122,10 @@ export default function SimulationViewport({
         onOpenChange={onOpenSidebarChange}
         temperature={temperature}
         setTemperature={onSetTemperature}
+        onTemperatureCommit={onTemperatureCommit}
         pressure={pressure}
         setPressure={onSetPressure}
+        onPressureCommit={onPressureCommit}
         showParticles={showParticles}
         setShowParticles={onSetShowParticles}
       />
@@ -184,7 +190,7 @@ export default function SimulationViewport({
               variant="soft"
               pill
               uniform={layout.shouldCompactPeriodicTableButton}
-              className={`${layout.shouldCompactPeriodicTableButton ? layout.desktopUniformButtonClass : layout.desktopLabelButtonClass} periodic-table-toggle-button`}
+              className={layout.shouldCompactPeriodicTableButton ? layout.desktopUniformButtonClass : layout.desktopLabelButtonClass}
               onClick={onPeriodicTableButtonClick}
             >
               <SettingsSlider style={layout.controlIconStyle} />
@@ -198,7 +204,7 @@ export default function SimulationViewport({
 
       {!isStandaloneWebapp && (
         <div
-          className="fixed z-20 flex flex-col gap-2"
+          className="fixed z-50 flex flex-col gap-2"
           style={{ top: `${16 + insets.top}px`, right: `${16 + insets.right}px` }}
         >
           <Tooltip content={isFullscreen ? messages.app.controls.exitFullscreen : messages.app.controls.enterFullscreen} contentClassName={TOOLTIP_CLASS}>

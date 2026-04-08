@@ -32,8 +32,10 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   temperature: number;
   setTemperature: (t: number) => void;
+  onTemperatureCommit: () => void;
   pressure: number;
   setPressure: (p: number) => void;
+  onPressureCommit: () => void;
   showParticles: boolean;
   setShowParticles: (v: boolean) => void;
 }
@@ -244,8 +246,10 @@ const PeriodicTableSelector: React.FC<Props> = ({
   onOpenChange,
   temperature,
   setTemperature,
+  onTemperatureCommit,
   pressure,
   setPressure,
+  onPressureCommit,
   showParticles,
   setShowParticles,
 }) => {
@@ -257,6 +261,7 @@ const PeriodicTableSelector: React.FC<Props> = ({
   const [isDraggingSheet, setIsDraggingSheet] = useState(false);
   const pointerStartY = useRef<number | null>(null);
   const activePointerId = useRef<number | null>(null);
+  const activeSliderRef = useRef<'temperature' | 'pressure' | null>(null);
   const dragHandleRef = useRef<HTMLDivElement | null>(null);
   const dragRafRef = useRef<number | null>(null);
   const pendingDragOffset = useRef(0);
@@ -380,24 +385,55 @@ const PeriodicTableSelector: React.FC<Props> = ({
   const isSliderActive = activeSlider !== null;
 
   const activateSlider = useCallback((slider: 'temperature' | 'pressure') => {
+    activeSliderRef.current = slider;
     setActiveSlider((current) => (current === slider ? current : slider));
   }, []);
 
   const releaseActiveSlider = useCallback(() => {
+    activeSliderRef.current = null;
     setActiveSlider((current) => (current === null ? current : null));
   }, []);
+
+  const handleTemperatureSliderRelease = useCallback(() => {
+    if (activeSliderRef.current !== 'temperature') {
+      return;
+    }
+
+    releaseActiveSlider();
+    onTemperatureCommit();
+  }, [onTemperatureCommit, releaseActiveSlider]);
+
+  const handlePressureSliderRelease = useCallback(() => {
+    if (activeSliderRef.current !== 'pressure') {
+      return;
+    }
+
+    releaseActiveSlider();
+    onPressureCommit();
+  }, [onPressureCommit, releaseActiveSlider]);
 
   useEffect(() => {
     if (!isSliderActive) return;
 
-    window.addEventListener('pointerup', releaseActiveSlider);
-    window.addEventListener('pointercancel', releaseActiveSlider);
+    const handleGlobalSliderRelease = () => {
+      if (activeSliderRef.current === 'temperature') {
+        handleTemperatureSliderRelease();
+        return;
+      }
+
+      if (activeSliderRef.current === 'pressure') {
+        handlePressureSliderRelease();
+      }
+    };
+
+    window.addEventListener('pointerup', handleGlobalSliderRelease);
+    window.addEventListener('pointercancel', handleGlobalSliderRelease);
 
     return () => {
-      window.removeEventListener('pointerup', releaseActiveSlider);
-      window.removeEventListener('pointercancel', releaseActiveSlider);
+      window.removeEventListener('pointerup', handleGlobalSliderRelease);
+      window.removeEventListener('pointercancel', handleGlobalSliderRelease);
     };
-  }, [isSliderActive, releaseActiveSlider]);
+  }, [handlePressureSliderRelease, handleTemperatureSliderRelease, isSliderActive]);
 
   useEffect(() => {
     if (!isDraggingSheet) return;
@@ -491,7 +527,10 @@ const PeriodicTableSelector: React.FC<Props> = ({
                     uniform
                     className="h-8 min-h-8 w-8 min-w-8 p-0"
                     aria-label={messages.periodicTable.resetTemperatureTo(defaultTemperatureLabel)}
-                    onClick={() => setTemperature(DEFAULT_TEMPERATURE_K)}
+                    onClick={() => {
+                      setTemperature(DEFAULT_TEMPERATURE_K);
+                      onTemperatureCommit();
+                    }}
                   >
                     <Reload className="size-4" />
                   </Button>
@@ -506,8 +545,9 @@ const PeriodicTableSelector: React.FC<Props> = ({
               </div>
               <div
                 onPointerDown={() => activateSlider('temperature')}
-                onPointerUp={releaseActiveSlider}
-                onPointerCancel={releaseActiveSlider}
+                onPointerUp={handleTemperatureSliderRelease}
+                onPointerCancel={handleTemperatureSliderRelease}
+                onBlur={handleTemperatureSliderRelease}
               >
                 <Slider
                   value={temperature}
@@ -542,7 +582,10 @@ const PeriodicTableSelector: React.FC<Props> = ({
                     uniform
                     className="h-8 min-h-8 w-8 min-w-8 p-0"
                     aria-label={messages.periodicTable.resetPressureTo(defaultPressureLabel)}
-                    onClick={() => setPressure(DEFAULT_PRESSURE_PA)}
+                    onClick={() => {
+                      setPressure(DEFAULT_PRESSURE_PA);
+                      onPressureCommit();
+                    }}
                   >
                     <Reload className="size-4" />
                   </Button>
@@ -557,8 +600,9 @@ const PeriodicTableSelector: React.FC<Props> = ({
               </div>
               <div
                 onPointerDown={() => activateSlider('pressure')}
-                onPointerUp={releaseActiveSlider}
-                onPointerCancel={releaseActiveSlider}
+                onPointerUp={handlePressureSliderRelease}
+                onPointerCancel={handlePressureSliderRelease}
+                onBlur={handlePressureSliderRelease}
               >
                 <Slider
                   value={pressureSliderValue}
@@ -574,28 +618,12 @@ const PeriodicTableSelector: React.FC<Props> = ({
             </div>
           </div>
 
-          <div className={`periodic-toolbar mb-0.5 transition-opacity duration-200 ease-out ${isSliderActive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-            <div className="periodic-toolbar-main">
-              <SegmentedControl
-                aria-label={messages.periodicTable.selectionMode}
-                value={isMultiSelect ? 'compare' : 'single'}
-                size="sm"
-                block
-                className="periodic-selection-control"
-                onChange={(next) => {
-                  if ((next === 'compare') !== isMultiSelect) {
-                    onToggleMultiSelect();
-                  }
-                }}
-              >
-                <SegmentedControl.Option value="single">{messages.periodicTable.single}</SegmentedControl.Option>
-                <SegmentedControl.Option value="compare">{messages.periodicTable.compare}</SegmentedControl.Option>
-              </SegmentedControl>
-
-              <div className="min-w-0">
+          <div className={`relative mb-0.5 flex items-center justify-between gap-2 transition-opacity duration-200 ease-out ${isSliderActive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+            <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2">
+              <div className="pointer-events-auto">
                 <Popover>
                   <Popover.Trigger>
-                    <Button color="secondary" variant="outline" size="sm" className="w-full justify-center min-[430px]:w-auto">
+                    <Button color="secondary" variant="outline" size="sm">
                       {messages.periodicTable.legend}
                     </Button>
                   </Popover.Trigger>
@@ -625,8 +653,22 @@ const PeriodicTableSelector: React.FC<Props> = ({
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex min-w-0 flex-wrap items-center gap-1">
+            <SegmentedControl
+              aria-label={messages.periodicTable.selectionMode}
+              value={isMultiSelect ? 'compare' : 'single'}
+              size="sm"
+              onChange={(next) => {
+                if ((next === 'compare') !== isMultiSelect) {
+                  onToggleMultiSelect();
+                }
+              }}
+            >
+              <SegmentedControl.Option value="single">{messages.periodicTable.single}</SegmentedControl.Option>
+              <SegmentedControl.Option value="compare">{messages.periodicTable.compare}</SegmentedControl.Option>
+            </SegmentedControl>
+
+            <div className="flex items-center gap-2">
+              <div className="flex shrink-0 -space-x-2">
                 {selectedPreview.map((element) => {
                   const toneStyle = getToneStyleBySymbol(element.symbol);
                   const avatarStyle: PreviewAvatarStyle | undefined = toneStyle
@@ -638,7 +680,7 @@ const PeriodicTableSelector: React.FC<Props> = ({
                   return (
                     <span
                       key={element.atomicNumber}
-                      className="periodic-preview-avatar flex size-6 items-center justify-center rounded-full border border-default text-[10px] font-semibold"
+                      className="periodic-preview-avatar flex size-6 shrink-0 items-center justify-center rounded-full border border-default text-[10px] font-semibold"
                       style={avatarStyle}
                       title={element.name}
                     >
@@ -647,7 +689,6 @@ const PeriodicTableSelector: React.FC<Props> = ({
                   );
                 })}
               </div>
-
               <Badge color={isMultiSelect ? 'info' : 'secondary'} variant="soft">
                 {selectedElements.length}/6
               </Badge>

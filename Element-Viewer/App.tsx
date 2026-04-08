@@ -130,6 +130,8 @@ function App() {
       onSetPressure={controller.setPressure}
       onSetShowParticles={controller.handleSetShowParticles}
       onSetTemperature={controller.setTemperature}
+      onPressureCommit={controller.handlePressureCommit}
+      onTemperatureCommit={controller.handleTemperatureCommit}
       onToggleFullscreen={handleToggleFullscreenWithTelemetry}
       onToggleMultiSelect={controller.handleToggleMultiSelect}
       onTogglePause={controller.handleTogglePause}

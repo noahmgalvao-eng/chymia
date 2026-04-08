@@ -4,6 +4,7 @@ import { Button, ButtonLink } from '@openai/apps-sdk-ui/components/Button';
 import {
   ArrowDown,
   ArrowUp,
+  ChevronDown,
   ExternalLink,
 } from '@openai/apps-sdk-ui/components/Icon';
 import { Popover } from '@openai/apps-sdk-ui/components/Popover';
@@ -738,18 +739,19 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
       >
         <div className="space-y-4 p-4">
           <div className="sticky top-0 z-10 -mx-4 -mt-4 border-b border-subtle bg-surface/95 px-4 py-2 backdrop-blur">
-            <button
-              type="button"
-              className="mb-2 flex w-full flex-col items-center justify-center gap-0.5 rounded-2xl border border-subtle bg-surface-secondary/80 px-4 py-1 text-secondary transition-colors hover:bg-surface-secondary active:bg-surface-secondary"
-              onClick={onClose}
-              aria-label={messages.propertiesMenu.closeDetails}
-            >
-              <span className="h-0.5 w-10 rounded-full bg-border" />
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase leading-none tracking-wide text-secondary">
-                <ArrowDown className="size-3" />
-                {messages.propertiesMenu.closeDetails}
-              </span>
-            </button>
+            <div className="mb-2 flex justify-center pt-0">
+              <Button
+                className="h-8 min-h-8 px-2.5"
+                color="secondary"
+                variant="ghost"
+                size="sm"
+                onClick={onClose}
+                aria-label={messages.periodicTable.hide}
+              >
+                <ChevronDown className="size-4" />
+                {messages.periodicTable.hide}
+              </Button>
+            </div>
             <div className="space-y-1">
               <div className="flex items-center gap-2">
               <CopyTooltip copyValue={element.symbol}>

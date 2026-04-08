@@ -153,6 +153,7 @@ function App() {
 
   const embeddedViewport = (
     <div
+      data-simulation-shell="true"
       className={`relative w-screen overflow-hidden bg-surface text-default ${isFullscreen ? 'h-screen' : 'h-[600px]'}`}
       style={{
         maxHeight: isFullscreen ? layout.computedFullscreenHeight : undefined,

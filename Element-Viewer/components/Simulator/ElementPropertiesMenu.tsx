@@ -4,7 +4,6 @@ import { Button, ButtonLink } from '@openai/apps-sdk-ui/components/Button';
 import {
   ArrowDown,
   ArrowUp,
-  CloseBold,
   ExternalLink,
 } from '@openai/apps-sdk-ui/components/Icon';
 import { Popover } from '@openai/apps-sdk-ui/components/Popover';
@@ -100,6 +99,24 @@ const getViewportMetrics = () => {
     offsetLeft: visualViewport?.offsetLeft ?? 0,
     offsetTop: visualViewport?.offsetTop ?? 0,
   };
+};
+
+const getSimulationShellRect = () => {
+  if (typeof document === 'undefined') {
+    return null;
+  }
+
+  const shell = document.querySelector<HTMLElement>('[data-simulation-shell="true"]');
+  if (!shell) {
+    return null;
+  }
+
+  const rect = shell.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) {
+    return null;
+  }
+
+  return rect;
 };
 
 const isTouchDevice = () => {
@@ -662,26 +679,32 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
   const viewportTop = viewportMetrics.offsetTop;
   const viewportWidth = viewportMetrics.width;
   const viewportHeight = viewportMetrics.height;
-  const availablePanelWidth = Math.max(0, viewportWidth - PANEL_SAFE_MARGIN_PX * 2);
-  const availablePanelHeight = Math.max(0, viewportHeight - PANEL_SAFE_MARGIN_PX * 2);
+  const isDesktopConstrainedLayout = !isTouchDevice() && viewportWidth >= 1024;
+  const shellRect = isDesktopConstrainedLayout ? getSimulationShellRect() : null;
+  const boundsLeft = shellRect?.left ?? viewportLeft;
+  const boundsTop = shellRect?.top ?? viewportTop;
+  const boundsWidth = shellRect?.width ?? viewportWidth;
+  const boundsHeight = shellRect?.height ?? viewportHeight;
+  const availablePanelWidth = Math.max(0, boundsWidth - PANEL_SAFE_MARGIN_PX * 2);
+  const availablePanelHeight = Math.max(0, boundsHeight - PANEL_SAFE_MARGIN_PX * 2);
   const defaultPanelWidth = Math.min(PANEL_MAX_WIDTH_PX, availablePanelWidth);
   const renderedPanelWidth = Math.min(panelSize.width || defaultPanelWidth, defaultPanelWidth);
   const renderedPanelHeight = Math.min(panelSize.height, availablePanelHeight);
   const anchorX = viewportLeft + x;
   const anchorY = viewportTop + y;
-  const side = anchorX > viewportLeft + viewportWidth * 0.6 ? 'left' : 'right';
+  const side = anchorX > boundsLeft + boundsWidth * 0.6 ? 'left' : 'right';
   const desiredPanelLeft = side === 'right'
     ? anchorX + 12
     : anchorX - renderedPanelWidth - 12;
-  const minPanelLeft = viewportLeft + PANEL_SAFE_MARGIN_PX;
+  const minPanelLeft = boundsLeft + PANEL_SAFE_MARGIN_PX;
   const maxPanelLeft = Math.max(
     minPanelLeft,
-    viewportLeft + viewportWidth - PANEL_SAFE_MARGIN_PX - renderedPanelWidth,
+    boundsLeft + boundsWidth - PANEL_SAFE_MARGIN_PX - renderedPanelWidth,
   );
-  const minPanelTop = viewportTop + PANEL_SAFE_MARGIN_PX;
+  const minPanelTop = boundsTop + PANEL_SAFE_MARGIN_PX;
   const maxPanelTop = Math.max(
     minPanelTop,
-    viewportTop + viewportHeight - PANEL_SAFE_MARGIN_PX - renderedPanelHeight,
+    boundsTop + boundsHeight - PANEL_SAFE_MARGIN_PX - renderedPanelHeight,
   );
   const panelLeft = clamp(desiredPanelLeft, minPanelLeft, maxPanelLeft);
   const panelTop = clamp(anchorY - 24, minPanelTop, maxPanelTop);
@@ -717,29 +740,26 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
           <div className="sticky top-0 z-10 -mx-4 -mt-4 border-b border-subtle bg-surface/95 px-4 py-3 backdrop-blur">
             <button
               type="button"
-              className="mb-2 flex w-full items-center justify-center rounded-t-2xl py-1 text-secondary transition-opacity hover:opacity-80"
+              className="mb-3 flex w-full flex-col items-center gap-2 rounded-2xl border border-subtle bg-surface-secondary/80 px-4 py-3 text-secondary transition-colors hover:bg-surface-secondary active:bg-surface-secondary"
               onClick={onClose}
               aria-label={messages.propertiesMenu.closeDetails}
             >
-              <span className="flex items-center gap-1 rounded-full border border-subtle bg-surface-secondary px-3 py-1 text-xs font-medium">
+              <span className="h-1.5 w-16 rounded-full bg-border" />
+              <span className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-secondary">
                 <ArrowDown className="size-3.5" />
+                {messages.propertiesMenu.closeDetails}
               </span>
             </button>
-            <div className="flex items-start justify-between gap-3">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                <CopyTooltip copyValue={element.symbol}>
-                  <span>
-                    <Badge color="info" variant="soft">{element.symbol}</Badge>
-                  </span>
-                </CopyTooltip>
-                {!isReactionProduct && <Badge color="secondary" variant="outline">#{element.atomicNumber}</Badge>}
-                </div>
-                <h3 className="heading-xs text-default">{element.name}</h3>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+              <CopyTooltip copyValue={element.symbol}>
+                <span>
+                  <Badge color="info" variant="soft">{element.symbol}</Badge>
+                </span>
+              </CopyTooltip>
+              {!isReactionProduct && <Badge color="secondary" variant="outline">#{element.atomicNumber}</Badge>}
               </div>
-              <Button color="secondary" variant="ghost" pill uniform onClick={onClose} aria-label={messages.propertiesMenu.closeDetails}>
-                <CloseBold className="size-4" />
-              </Button>
+              <h3 className="heading-xs text-default">{element.name}</h3>
             </div>
           </div>
 

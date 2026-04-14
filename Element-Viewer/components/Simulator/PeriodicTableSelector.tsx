@@ -693,31 +693,33 @@ const PeriodicTableSelector: React.FC<Props> = ({
                   <FileZip className="size-4" />
                   {messages.periodicTable.temperature}
                 </p>
-                <div className="flex flex-wrap items-center justify-between gap-2 min-[430px]:justify-end">
-                  <div className="inline-flex h-8 min-h-8 max-w-full items-center justify-center rounded-full border border-default bg-surface-secondary px-3 text-sm font-semibold text-default">
+                <div className="periodic-slider-meta">
+                  <div className="periodic-slider-value inline-flex h-8 min-h-8 max-w-full items-center justify-center rounded-full border border-default bg-surface-secondary px-3 text-sm font-semibold text-default">
                     {currentTemperatureLabel}
                   </div>
-                  <Button
-                    color="secondary"
-                    variant="outline"
-                    size="sm"
-                    uniform
-                    className="h-8 min-h-8 w-8 min-w-8 p-0"
-                    aria-label={messages.periodicTable.resetTemperatureTo(defaultTemperatureLabel)}
-                    onClick={() => {
-                      setTemperature(DEFAULT_TEMPERATURE_K);
-                      onTemperatureCommit();
-                    }}
-                  >
-                    <Reload className="size-4" />
-                  </Button>
-                  <Select
-                    options={TEMP_UNITS.map((unit) => ({ value: unit.value, label: unit.label }))}
-                    value={tempUnit}
-                    onChange={(next) => setTempUnit(next.value as TempUnit)}
-                    block={false}
-                    size="sm"
-                  />
+                  <div className="periodic-slider-actions">
+                    <Button
+                      color="secondary"
+                      variant="outline"
+                      size="sm"
+                      uniform
+                      className="h-8 min-h-8 w-8 min-w-8 p-0"
+                      aria-label={messages.periodicTable.resetTemperatureTo(defaultTemperatureLabel)}
+                      onClick={() => {
+                        setTemperature(DEFAULT_TEMPERATURE_K);
+                        onTemperatureCommit();
+                      }}
+                    >
+                      <Reload className="size-4" />
+                    </Button>
+                    <Select
+                      options={TEMP_UNITS.map((unit) => ({ value: unit.value, label: unit.label }))}
+                      value={tempUnit}
+                      onChange={(next) => setTempUnit(next.value as TempUnit)}
+                      block={false}
+                      size="sm"
+                    />
+                  </div>
                 </div>
               </div>
               <div
@@ -753,31 +755,33 @@ const PeriodicTableSelector: React.FC<Props> = ({
                   <SpeedometerLatencySpeed className="size-4" />
                   {messages.periodicTable.pressure}
                 </p>
-                <div className="flex flex-wrap items-center justify-between gap-2 min-[430px]:justify-end">
-                  <div className="inline-flex h-8 min-h-8 max-w-full items-center justify-center rounded-full border border-default bg-surface-secondary px-3 text-sm font-semibold text-default">
+                <div className="periodic-slider-meta">
+                  <div className="periodic-slider-value inline-flex h-8 min-h-8 max-w-full items-center justify-center rounded-full border border-default bg-surface-secondary px-3 text-sm font-semibold text-default">
                     {currentPressureLabel}
                   </div>
-                  <Button
-                    color="secondary"
-                    variant="outline"
-                    size="sm"
-                    uniform
-                    className="h-8 min-h-8 w-8 min-w-8 p-0"
-                    aria-label={messages.periodicTable.resetPressureTo(defaultPressureLabel)}
-                    onClick={() => {
-                      setPressure(DEFAULT_PRESSURE_PA);
-                      onPressureCommit();
-                    }}
-                  >
-                    <Reload className="size-4" />
-                  </Button>
-                  <Select
-                    options={PRESSURE_UNITS.map((unit) => ({ value: unit.value, label: unit.label }))}
-                    value={pressureUnit}
-                    onChange={(next) => setPressureUnit(next.value as PressureUnit)}
-                    block={false}
-                    size="sm"
-                  />
+                  <div className="periodic-slider-actions">
+                    <Button
+                      color="secondary"
+                      variant="outline"
+                      size="sm"
+                      uniform
+                      className="h-8 min-h-8 w-8 min-w-8 p-0"
+                      aria-label={messages.periodicTable.resetPressureTo(defaultPressureLabel)}
+                      onClick={() => {
+                        setPressure(DEFAULT_PRESSURE_PA);
+                        onPressureCommit();
+                      }}
+                    >
+                      <Reload className="size-4" />
+                    </Button>
+                    <Select
+                      options={PRESSURE_UNITS.map((unit) => ({ value: unit.value, label: unit.label }))}
+                      value={pressureUnit}
+                      onChange={(next) => setPressureUnit(next.value as PressureUnit)}
+                      block={false}
+                      size="sm"
+                    />
+                  </div>
                 </div>
               </div>
               <div

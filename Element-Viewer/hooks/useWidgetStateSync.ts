@@ -54,7 +54,7 @@ export function useWidgetStateSync({
   const reactionProductsCacheRef = useRef<ChemicalElement[]>(reactionProductsCache);
   const localeRef = useRef(locale);
   const syncStateToChatGPTRef = useRef<() => Promise<void>>(async () => {});
-  const scheduledSyncRef = useRef<{ raf1: number; raf2: number }>({ raf1: 0, raf2: 0 });
+  const scheduledSyncRef = useRef<number | null>(null);
 
   useEffect(() => {
     reactionProductsCacheRef.current = reactionProductsCache;
@@ -85,61 +85,48 @@ export function useWidgetStateSync({
         targetTemperature: temperature,
       });
     });
-
-    await window.openai.setWidgetState(
-      buildWidgetStatePayload(
-        selectedElements,
-        elementsData,
-        temperature,
-        pressure,
-      ),
-    );
+    try {
+      await window.openai.setWidgetState(
+        buildWidgetStatePayload(
+          selectedElements,
+          elementsData,
+          temperature,
+          pressure,
+        ),
+      );
+    } catch (error) {
+      console.error('Failed to sync widget state to ChatGPT:', error);
+    }
   }, [messages, pressure, selectedElements, simulationRegistry, temperature]);
 
   syncStateToChatGPTRef.current = syncStateToChatGPT;
 
   const cancelScheduledSyncStateToChatGPT = useCallback(() => {
-    const scheduled = scheduledSyncRef.current;
-    if (scheduled.raf1) {
-      cancelAnimationFrame(scheduled.raf1);
-      scheduled.raf1 = 0;
-    }
-
-    if (scheduled.raf2) {
-      cancelAnimationFrame(scheduled.raf2);
-      scheduled.raf2 = 0;
+    if (scheduledSyncRef.current !== null) {
+      window.clearTimeout(scheduledSyncRef.current);
+      scheduledSyncRef.current = null;
     }
   }, []);
 
   const scheduleSyncStateToChatGPT = useCallback(() => {
     cancelScheduledSyncStateToChatGPT();
 
-    const scheduled = scheduledSyncRef.current;
-    scheduled.raf1 = requestAnimationFrame(() => {
-      scheduled.raf1 = 0;
-      scheduled.raf2 = requestAnimationFrame(() => {
-        scheduled.raf2 = 0;
-        void syncStateToChatGPTRef.current();
-      });
-    });
+    scheduledSyncRef.current = window.setTimeout(() => {
+      scheduledSyncRef.current = null;
+      void syncStateToChatGPTRef.current();
+    }, 0);
   }, [cancelScheduledSyncStateToChatGPT]);
 
   useEffect(() => {
     let cancelled = false;
-    let raf1 = 0;
-    let raf2 = 0;
-
-    raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(async () => {
-        if (cancelled) return;
-        await syncStateToChatGPTRef.current();
-      });
-    });
+    const timeoutId = window.setTimeout(async () => {
+      if (cancelled) return;
+      await syncStateToChatGPTRef.current();
+    }, 0);
 
     return () => {
       cancelled = true;
-      cancelAnimationFrame(raf1);
-      cancelAnimationFrame(raf2);
+      window.clearTimeout(timeoutId);
       cancelScheduledSyncStateToChatGPT();
     };
   }, [cancelScheduledSyncStateToChatGPT]);

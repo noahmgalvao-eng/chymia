@@ -13,7 +13,7 @@ import {
 } from '@openai/apps-sdk-ui/components/Icon';
 import { Popover } from '@openai/apps-sdk-ui/components/Popover';
 import { Tooltip } from '@openai/apps-sdk-ui/components/Tooltip';
-import { useCallback, type MouseEvent, type TouchEvent } from 'react';
+import { useCallback, type MouseEvent, type PointerEvent, type TouchEvent } from 'react';
 import type { SimulationChromeLayout } from '../app/simulationLayout';
 import type { ContextMenuData } from '../app/appDefinitions';
 import type { RecordingResult } from '../hooks/useSimulationController';
@@ -110,6 +110,15 @@ export default function SimulationViewport({
 }) {
   const count = selectedElements.length;
   const handleInfoButtonTouchEnd = useCallback((event: TouchEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    void onInfoButtonPress();
+  }, [onInfoButtonPress]);
+  const handleInfoButtonPointerUp = useCallback((event: PointerEvent) => {
+    if (event.pointerType === 'mouse') {
+      return;
+    }
+
     event.preventDefault();
     event.stopPropagation();
     void onInfoButtonPress();
@@ -231,6 +240,7 @@ export default function SimulationViewport({
                 uniform
                 className={layout.desktopUniformButtonClass}
                 onClick={onInfoButtonClick}
+                onPointerUpCapture={handleInfoButtonPointerUp}
                 onTouchEndCapture={handleInfoButtonTouchEnd}
                 style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
               >

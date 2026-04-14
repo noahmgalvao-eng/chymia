@@ -2,8 +2,6 @@ import React, { useEffect, useRef, type MutableRefObject } from 'react';
 import { MatterState, Particle, ParticleState, PhysicsState, ViewBoxDimensions } from '../../types';
 import { interpolateValue } from '../../utils/interpolator';
 import {
-  getMatterPathFromProgress,
-  getMatterRenderTransform,
   getParticleVibration,
 } from '../../utils/evaporationLayout';
 import {
@@ -48,7 +46,6 @@ type CanvasParticleNode = {
 const PARTICLE_RENDER_GRID_CELL_SIZE = 14;
 const MAX_CANVAS_DPR = 2;
 const NOISE_TEXTURE_SIZE = 96;
-const PATH_CACHE_LIMIT = 32;
 const TAU = Math.PI * 2;
 
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
@@ -56,6 +53,23 @@ const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 const smoothstep = (value: number) => {
   const t = clamp01(value);
   return t * t * (3 - (2 * t));
+};
+
+const hexToRgba = (hexColor: string, alpha: number) => {
+  const normalized = hexColor.replace('#', '').trim();
+  const full = normalized.length === 3
+    ? normalized.split('').map((char) => `${char}${char}`).join('')
+    : normalized;
+
+  if (!/^[0-9a-fA-F]{6}$/.test(full)) {
+    return `rgba(255, 255, 255, ${clamp01(alpha)})`;
+  }
+
+  const r = Number.parseInt(full.slice(0, 2), 16);
+  const g = Number.parseInt(full.slice(2, 4), 16);
+  const b = Number.parseInt(full.slice(4, 6), 16);
+
+  return `rgba(${r}, ${g}, ${b}, ${clamp01(alpha)})`;
 };
 
 const isMeltLikeState = (state: MatterState) => (
@@ -104,26 +118,6 @@ const getTrappedParticleAnchor = (
   }
 
   return { x: particle.homeX, y: particle.homeY };
-};
-
-const ensurePathCacheLimit = (cache: Map<string, Path2D>) => {
-  while (cache.size > PATH_CACHE_LIMIT) {
-    const firstKey = cache.keys().next().value;
-    if (!firstKey) break;
-    cache.delete(firstKey);
-  }
-};
-
-const getCachedPath2D = (cache: Map<string, Path2D>, pathData: string) => {
-  let path = cache.get(pathData);
-  if (path) {
-    return path;
-  }
-
-  path = new Path2D(pathData);
-  cache.set(pathData, path);
-  ensurePathCacheLimit(cache);
-  return path;
 };
 
 const createNoiseTexture = () => {
@@ -230,6 +224,165 @@ const drawNoiseFill = (
   ctx.restore();
 };
 
+const buildMistRibbonPath = (
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  time: number,
+  phase: number,
+) => {
+  const path = new Path2D();
+  const left = x;
+  const right = x + width;
+  const top = y;
+  const bottom = y + height;
+  const waveA = Math.sin((time * 0.9) + phase);
+  const waveB = Math.cos((time * 1.1) + (phase * 1.3));
+  const waveC = Math.sin((time * 1.25) + (phase * 1.9));
+
+  path.moveTo(left + (width * 0.04), bottom - (height * 0.16));
+  path.bezierCurveTo(
+    left + (width * 0.14),
+    top + (height * (0.74 + (waveA * 0.03))),
+    left + (width * 0.2),
+    top + (height * (0.2 + (waveB * 0.04))),
+    left + (width * 0.36),
+    top + (height * (0.26 + (waveC * 0.03))),
+  );
+  path.bezierCurveTo(
+    left + (width * 0.5),
+    top + (height * (0.08 + (waveA * 0.02))),
+    left + (width * 0.68),
+    top + (height * (0.16 - (waveB * 0.03))),
+    left + (width * 0.78),
+    top + (height * (0.3 + (waveC * 0.03))),
+  );
+  path.bezierCurveTo(
+    left + (width * 0.88),
+    top + (height * (0.42 + (waveA * 0.03))),
+    left + (width * 0.94),
+    top + (height * (0.62 + (waveB * 0.03))),
+    right - (width * 0.04),
+    bottom - (height * 0.18),
+  );
+  path.bezierCurveTo(
+    left + (width * 0.88),
+    bottom - (height * 0.02),
+    left + (width * 0.72),
+    bottom - (height * 0.01),
+    left + (width * 0.54),
+    bottom - (height * 0.08),
+  );
+  path.bezierCurveTo(
+    left + (width * 0.38),
+    bottom - (height * 0.02),
+    left + (width * 0.18),
+    bottom - (height * 0.04),
+    left + (width * 0.04),
+    bottom - (height * 0.16),
+  );
+  path.closePath();
+
+  return path;
+};
+
+const fillMistRibbon = (
+  ctx: CanvasRenderingContext2D,
+  path: Path2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  color: string,
+  opacity: number,
+) => {
+  if (opacity <= 0) {
+    return;
+  }
+
+  ctx.save();
+  ctx.clip(path);
+
+  const verticalGradient = ctx.createLinearGradient(0, y, 0, y + height);
+  verticalGradient.addColorStop(0, hexToRgba(color, 0));
+  verticalGradient.addColorStop(0.18, hexToRgba(color, opacity * 0.58));
+  verticalGradient.addColorStop(0.42, hexToRgba(color, opacity));
+  verticalGradient.addColorStop(0.72, hexToRgba(color, opacity * 0.42));
+  verticalGradient.addColorStop(1, hexToRgba(color, 0));
+  ctx.fillStyle = verticalGradient;
+  ctx.fillRect(x, y, width, height);
+
+  const horizontalGradient = ctx.createLinearGradient(x, 0, x + width, 0);
+  horizontalGradient.addColorStop(0, hexToRgba(color, 0));
+  horizontalGradient.addColorStop(0.16, hexToRgba(color, opacity * 0.38));
+  horizontalGradient.addColorStop(0.5, hexToRgba(color, opacity * 0.68));
+  horizontalGradient.addColorStop(0.84, hexToRgba(color, opacity * 0.34));
+  horizontalGradient.addColorStop(1, hexToRgba(color, 0));
+  ctx.fillStyle = horizontalGradient;
+  ctx.fillRect(x, y, width, height);
+
+  const coreGradient = ctx.createLinearGradient(0, y + (height * 0.18), 0, y + (height * 0.68));
+  coreGradient.addColorStop(0, hexToRgba(color, 0));
+  coreGradient.addColorStop(0.5, hexToRgba(color, opacity * 0.52));
+  coreGradient.addColorStop(1, hexToRgba(color, 0));
+  ctx.fillStyle = coreGradient;
+  ctx.fillRect(x + (width * 0.08), y + (height * 0.08), width * 0.84, height * 0.72);
+
+  ctx.restore();
+};
+
+const drawSteamOverlay = (
+  ctx: CanvasRenderingContext2D,
+  physics: PhysicsState,
+  palette: CanvasPalette,
+  viewBounds: ViewBoxDimensions,
+  metrics: CanvasViewportMetrics,
+  showParticles: boolean,
+) => {
+  const steamStrength = shouldShowSteamEffect(physics.state) ? getSteamStrength(physics) : 0;
+  if (steamStrength <= 0.001 || physics.pathProgress >= 9.9) {
+    return;
+  }
+
+  applyWorldTransform(ctx, metrics, viewBounds);
+
+  const intensity = steamStrength * (showParticles ? 0.55 : 1);
+  const width = physics.matterRect.w + 56;
+  const height = Math.max(34, physics.matterRect.h * (0.82 + (steamStrength * 0.28)));
+  const x = physics.matterRect.x - 28;
+  const y = physics.matterRect.y - (height * 0.68);
+  const time = physics.simTime;
+
+  const baseRibbon = buildMistRibbonPath(x, y, width, height, time, 0);
+  fillMistRibbon(
+    ctx,
+    baseRibbon,
+    x,
+    y,
+    width,
+    height,
+    palette.gasColor,
+    intensity * 0.28,
+  );
+
+  const upperWidth = width * 0.9;
+  const upperHeight = height * 0.76;
+  const upperX = x + (width * 0.05) + (Math.sin(time * 0.75) * 4);
+  const upperY = y - (height * 0.08);
+  const upperRibbon = buildMistRibbonPath(upperX, upperY, upperWidth, upperHeight, time, 1.6);
+  fillMistRibbon(
+    ctx,
+    upperRibbon,
+    upperX,
+    upperY,
+    upperWidth,
+    upperHeight,
+    palette.gasColor,
+    intensity * 0.18,
+  );
+};
+
 const drawBackgroundEffects = (
   ctx: CanvasRenderingContext2D,
   physics: PhysicsState,
@@ -237,133 +390,69 @@ const drawBackgroundEffects = (
   viewBounds: ViewBoxDimensions,
   metrics: CanvasViewportMetrics,
   noiseTexture: HTMLCanvasElement | null,
-  pathCache: Map<string, Path2D>,
 ) => {
-  const steamStrength = shouldShowSteamEffect(physics.state) ? getSteamStrength(physics) : 0;
   const showScfFog =
     (physics.state === MatterState.SUPERCRITICAL || physics.state === MatterState.TRANSITION_SCF)
     && physics.scfOpacity > 0.01;
 
-  if (steamStrength <= 0.001 && !showScfFog) {
+  if (!showScfFog) {
     return;
   }
 
   applyWorldTransform(ctx, metrics, viewBounds);
 
-  if (steamStrength > 0.001 && physics.pathProgress < 9.9) {
-    const pathData = getMatterPathFromProgress(physics.pathProgress, 0.01);
-    const matterPath = getCachedPath2D(pathCache, pathData);
-    const { scaleX, scaleY, centerX, centerY } = getMatterRenderTransform(
-      physics.matterRect,
-      physics.meltProgress,
-      physics.state,
-    );
+  const fogPadding = 20;
+  const fogX = physics.gasBounds.minX - fogPadding;
+  const fogY = physics.gasBounds.minY - fogPadding;
+  const fogWidth = (physics.gasBounds.maxX - physics.gasBounds.minX) + (fogPadding * 2);
+  const fogHeight = (physics.gasBounds.maxY - physics.gasBounds.minY) + (fogPadding * 2);
+  const fogOpacity = physics.scfOpacity * 0.34;
 
-    ctx.save();
-    ctx.translate(centerX, centerY);
-    ctx.scale(scaleX, scaleY);
-    ctx.globalAlpha = steamStrength;
-    if ('filter' in ctx) {
-      ctx.filter = 'blur(18px)';
-    }
-    ctx.fillStyle = palette.gasColor;
-    ctx.fill(matterPath);
-    ctx.translate(0, -18 / Math.max(0.32, Math.abs(scaleY)));
-    ctx.globalAlpha = steamStrength * 0.65;
-    ctx.fill(matterPath);
-    ctx.restore();
+  const verticalGradient = ctx.createLinearGradient(0, fogY, 0, fogY + fogHeight);
+  verticalGradient.addColorStop(0, hexToRgba(palette.gasColor, 0));
+  verticalGradient.addColorStop(0.24, hexToRgba(palette.gasColor, fogOpacity * 0.72));
+  verticalGradient.addColorStop(0.54, hexToRgba(palette.gasColor, fogOpacity));
+  verticalGradient.addColorStop(0.84, hexToRgba(palette.gasColor, fogOpacity * 0.48));
+  verticalGradient.addColorStop(1, hexToRgba(palette.gasColor, 0));
+  ctx.fillStyle = verticalGradient;
+  ctx.fillRect(fogX, fogY, fogWidth, fogHeight);
 
-    const plumeHeight = Math.max(34, physics.matterRect.h * 0.9);
-    ctx.save();
-    if ('filter' in ctx) {
-      ctx.filter = 'blur(10px)';
-    }
-    ctx.globalAlpha = steamStrength * 0.18;
-    ctx.fillStyle = palette.gasColor;
-    for (let index = 0; index < 5; index += 1) {
-      const ratio = (index + 0.5) / 5;
-      const plumeX = physics.matterRect.x + (physics.matterRect.w * ratio);
-      const sway = Math.sin((physics.simTime * 1.6) + (index * 1.35)) * 7;
-      const plumeY = physics.matterRect.y - (plumeHeight * (0.42 + (ratio * 0.18)));
-      ctx.beginPath();
-      ctx.ellipse(
-        plumeX + sway,
-        plumeY,
-        16 + (steamStrength * 18),
-        22 + (steamStrength * 24),
-        0,
-        0,
-        TAU,
-      );
-      ctx.fill();
-    }
-    ctx.restore();
+  const horizontalGradient = ctx.createLinearGradient(fogX, 0, fogX + fogWidth, 0);
+  horizontalGradient.addColorStop(0, hexToRgba(palette.gasColor, 0));
+  horizontalGradient.addColorStop(0.18, hexToRgba(palette.gasColor, fogOpacity * 0.44));
+  horizontalGradient.addColorStop(0.5, hexToRgba(palette.gasColor, fogOpacity * 0.7));
+  horizontalGradient.addColorStop(0.82, hexToRgba(palette.gasColor, fogOpacity * 0.42));
+  horizontalGradient.addColorStop(1, hexToRgba(palette.gasColor, 0));
+  ctx.fillStyle = horizontalGradient;
+  ctx.fillRect(fogX, fogY, fogWidth, fogHeight);
 
-    drawNoiseFill(
-      ctx,
-      noiseTexture,
-      physics.matterRect.x - 18,
-      physics.matterRect.y - plumeHeight,
-      physics.matterRect.w + 36,
-      plumeHeight + 18,
-      (physics.simTime * 14) % NOISE_TEXTURE_SIZE,
-      (-physics.simTime * 18) % NOISE_TEXTURE_SIZE,
-      steamStrength * 0.1,
-    );
-  }
+  const centerX = fogX + (fogWidth * (0.46 + (Math.sin(physics.simTime * 0.45) * 0.05)));
+  const centerY = fogY + (fogHeight * 0.48);
+  const radialGradient = ctx.createRadialGradient(
+    centerX,
+    centerY,
+    0,
+    centerX,
+    centerY,
+    Math.max(fogWidth, fogHeight) * 0.48,
+  );
+  radialGradient.addColorStop(0, hexToRgba(palette.gasColor, fogOpacity * 0.4));
+  radialGradient.addColorStop(0.55, hexToRgba(palette.gasColor, fogOpacity * 0.16));
+  radialGradient.addColorStop(1, hexToRgba(palette.gasColor, 0));
+  ctx.fillStyle = radialGradient;
+  ctx.fillRect(fogX, fogY, fogWidth, fogHeight);
 
-  if (showScfFog) {
-    const fogPadding = 20;
-    const fogX = physics.gasBounds.minX - fogPadding;
-    const fogY = physics.gasBounds.minY - fogPadding;
-    const fogWidth = (physics.gasBounds.maxX - physics.gasBounds.minX) + (fogPadding * 2);
-    const fogHeight = (physics.gasBounds.maxY - physics.gasBounds.minY) + (fogPadding * 2);
-
-    ctx.save();
-    if ('filter' in ctx) {
-      ctx.filter = 'blur(14px)';
-    }
-    ctx.globalAlpha = physics.scfOpacity * 0.55;
-    ctx.fillStyle = palette.gasColor;
-    ctx.fillRect(fogX, fogY, fogWidth, fogHeight);
-    ctx.restore();
-
-    ctx.save();
-    if ('filter' in ctx) {
-      ctx.filter = 'blur(18px)';
-    }
-    ctx.globalAlpha = physics.scfOpacity * 0.32;
-    ctx.fillStyle = palette.gasColor;
-    for (let index = 0; index < 6; index += 1) {
-      const ratio = (index + 1) / 7;
-      const ellipseX = physics.gasBounds.minX + (fogWidth * ratio) + (Math.sin(physics.simTime + index) * 10);
-      const ellipseY = physics.gasBounds.minY + (fogHeight * (0.15 + (ratio * 0.62)));
-      ctx.beginPath();
-      ctx.ellipse(
-        ellipseX,
-        ellipseY,
-        Math.max(18, fogWidth * 0.16),
-        Math.max(18, fogHeight * 0.1),
-        0,
-        0,
-        TAU,
-      );
-      ctx.fill();
-    }
-    ctx.restore();
-
-    drawNoiseFill(
-      ctx,
-      noiseTexture,
-      fogX,
-      fogY,
-      fogWidth,
-      fogHeight,
-      (physics.simTime * 10) % NOISE_TEXTURE_SIZE,
-      (physics.simTime * 8) % NOISE_TEXTURE_SIZE,
-      physics.scfOpacity * 0.14,
-    );
-  }
+  drawNoiseFill(
+    ctx,
+    noiseTexture,
+    fogX,
+    fogY,
+    fogWidth,
+    fogHeight,
+    (physics.simTime * 8) % NOISE_TEXTURE_SIZE,
+    (physics.simTime * 6) % NOISE_TEXTURE_SIZE,
+    physics.scfOpacity * 0.04,
+  );
 };
 
 const resolveParticleNodes = (
@@ -576,7 +665,6 @@ const ParticleCanvasLayerComponent: React.FC<ParticleCanvasLayerProps> = ({
   const viewportMetricsRef = useRef<CanvasViewportMetrics>({ pixelWidth: 0, pixelHeight: 0 });
   const renderGridRef = useRef(createSpatialGrid(PARTICLE_RENDER_GRID_CELL_SIZE));
   const trappedParticleCacheRef = useRef<Map<number, { x: number; y: number }>>(new Map());
-  const pathCacheRef = useRef<Map<string, Path2D>>(new Map());
   const noiseTextureRef = useRef<HTMLCanvasElement | null>(null);
   const redrawVersionRef = useRef(0);
 
@@ -662,7 +750,15 @@ const ParticleCanvasLayerComponent: React.FC<ParticleCanvasLayerProps> = ({
             viewBounds,
             metrics,
             noiseTextureRef.current,
-            pathCacheRef.current,
+          );
+
+          drawSteamOverlay(
+            foregroundCtx,
+            livePhysics,
+            palette,
+            viewBounds,
+            metrics,
+            showParticles,
           );
 
           const nextTrappedParticleCache = new Map<number, { x: number; y: number }>();

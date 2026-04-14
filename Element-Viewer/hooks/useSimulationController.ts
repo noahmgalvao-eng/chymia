@@ -296,11 +296,11 @@ export function useSimulationController({
   };
 
   const handleTemperatureCommit = () => {
-    scheduleSyncStateToChatGPT();
+    void syncStateToChatGPT();
   };
 
   const handlePressureCommit = () => {
-    scheduleSyncStateToChatGPT();
+    void syncStateToChatGPT();
   };
 
   const handleCloseRecordingResults = () => {

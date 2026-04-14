@@ -55,16 +55,54 @@
 .periodic-toolbar {
   display: grid;
   gap: 0.5rem;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "mode legend"
+    "status status";
+  align-items: center;
 }
 
-.periodic-toolbar-main {
-  display: grid;
+.periodic-toolbar-mode {
+  grid-area: mode;
+  min-width: 0;
+}
+
+.periodic-toolbar-legend {
+  grid-area: legend;
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.periodic-toolbar-status {
+  grid-area: status;
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.periodic-toolbar-status-group {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
   gap: 0.5rem;
   min-width: 0;
+  max-width: 100%;
 }
 
 .periodic-selection-control {
   min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  --segmented-control-font-size: clamp(0.72rem, 0.68rem + 0.35vw, 0.82rem);
+  --segmented-control-option-gutter: clamp(0.42rem, 0.36rem + 0.35vw, 0.65rem);
+}
+
+.periodic-selection-control :where(.SegmentedControl) {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .periodic-selection-control :where(.SegmentedControlOption) {
@@ -77,6 +115,18 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.periodic-legend-button {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  height: 1.95rem !important;
+  min-height: 1.95rem !important;
+  padding-inline: 0.7rem !important;
+  font-size: clamp(0.72rem, 0.68rem + 0.3vw, 0.82rem) !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
 }
 
 .periodic-slider {
@@ -146,7 +196,7 @@
   box-sizing: border-box;
   grid-template-columns: repeat(18, minmax(0, 1fr));
   grid-template-rows: repeat(10, minmax(0, auto));
-  gap: clamp(1px, 0.18vw, 2px);
+  gap: var(--periodic-grid-gap, clamp(1px, 0.18vw, 2px));
   touch-action: manipulation;
   user-select: none;
   -webkit-user-select: none;
@@ -155,6 +205,7 @@
 
 .periodic-grid-scroll {
   width: 100%;
+  min-width: 0;
   overflow: hidden;
   padding-bottom: 0;
   overscroll-behavior: none;
@@ -197,7 +248,13 @@
 }
 
 .periodic-cell {
-  --periodic-cell-inset: clamp(1px, 0.18rem, 4px);
+  --periodic-cell-size: 18px;
+  --periodic-cell-inset: 2px;
+  --periodic-cell-number-size: 7px;
+  --periodic-cell-symbol-size: 10px;
+  --periodic-cell-symbol-top: 64%;
+  --periodic-cell-index-size: 7px;
+  --periodic-cell-index-box: 11px;
   --button-radius: clamp(0.28rem, 1.1vw, 0.58rem);
   --selection-ring-border-width: 3px;
   --selection-ring-inner-width: 2px;
@@ -209,7 +266,7 @@
   width: 100% !important;
   min-width: 0 !important;
   aspect-ratio: 1 / 1 !important;
-  border-radius: 0.58rem !important;
+  border-radius: clamp(0.24rem, calc(var(--periodic-cell-size, 18px) * 0.24), 0.58rem) !important;
   padding: 0 !important;
   gap: 0 !important;
   display: flex !important;
@@ -230,11 +287,16 @@
 
 .periodic-cell-number {
   position: absolute;
-  inset-block-start: calc(var(--periodic-cell-inset) + 1px);
-  inset-inline-start: calc(var(--periodic-cell-inset) + 1px);
+  inset-block-start: var(--periodic-cell-inset);
+  inset-inline-start: var(--periodic-cell-inset);
   max-width: calc(100% - (var(--periodic-cell-inset) * 2));
-  font-size: clamp(0.22rem, 0.12rem + 0.48vw, 0.5rem);
+  overflow: hidden;
+  font-size: var(--periodic-cell-number-size);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  letter-spacing: -0.03em;
   line-height: 1;
+  text-overflow: clip;
   white-space: nowrap;
   z-index: 1;
 }
@@ -242,16 +304,16 @@
 .periodic-cell-symbol {
   position: absolute;
   inset-inline-start: 50%;
-  inset-block-start: 58%;
+  inset-block-start: var(--periodic-cell-symbol-top, 58%);
   transform: translate(-50%, -50%);
   display: block;
   max-width: calc(100% - (var(--periodic-cell-inset) * 2));
   padding-inline: 0;
-  font-size: clamp(0.32rem, 0.16rem + 0.82vw, 0.84rem);
+  overflow: hidden;
+  font-size: var(--periodic-cell-symbol-size);
   font-weight: 700;
-  line-height: 0.95;
-  letter-spacing: -0.02em;
-  overflow: visible;
+  letter-spacing: -0.06em;
+  line-height: 0.82;
   text-overflow: clip;
   white-space: nowrap;
   z-index: 1;
@@ -265,13 +327,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: clamp(0.42rem, 0.24rem + 0.9vw, 0.82rem);
-  height: clamp(0.42rem, 0.24rem + 0.9vw, 0.82rem);
+  min-width: var(--periodic-cell-index-box);
+  height: var(--periodic-cell-index-box);
   padding: 0 0.08rem;
   border-radius: 999px;
   background: var(--color-background-info-solid, #2899ff);
   color: #ffffff;
-  font-size: clamp(0.22rem, 0.14rem + 0.45vw, 0.5rem);
+  font-size: var(--periodic-cell-index-size);
+  font-variant-numeric: tabular-nums;
   font-weight: 700;
   line-height: 1;
   box-shadow: 0 1px 3px color-mix(in oklab, #0f172a 18%, transparent);
@@ -369,9 +432,8 @@
 }
 
 @media (min-width: 430px) {
-  .periodic-toolbar-main {
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
+  .periodic-legend-button {
+    padding-inline: 0.8rem !important;
   }
 }
 
@@ -417,51 +479,19 @@
   }
 }
 
-@media (max-width: 480px) {
-  .periodic-reaction-cluster {
-    left: 18%;
-    width: 48%;
-    gap: 0.15rem;
+@media (min-width: 640px) {
+  .periodic-toolbar {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas: "mode legend status";
   }
 
-  .periodic-reaction-list {
-    gap: 0.18rem;
-    max-height: 2.8rem;
-  }
-
-  .periodic-cell-symbol {
-    inset-block-start: 60%;
-    font-size: clamp(0.31rem, 0.14rem + 0.9vw, 0.72rem);
-  }
-}
-
-@media (max-width: 380px) {
   .periodic-selection-control {
-    --segmented-control-font-size: 0.75rem;
-    --segmented-control-option-gutter: 0.45rem;
+    --segmented-control-font-size: 0.82rem;
+    --segmented-control-option-gutter: 0.7rem;
   }
 
-  .periodic-cell {
-    --periodic-cell-inset: 1px;
-  }
-
-  .periodic-cell-number {
-    inset-block-start: 2px;
-    inset-inline-start: 2px;
-    font-size: 0.19rem;
-  }
-
-  .periodic-cell-symbol {
-    inset-block-start: 61%;
-    max-width: calc(100% - 2px);
-    font-size: 0.29rem;
-  }
-
-  .periodic-cell-index {
-    min-width: 0.4rem;
-    height: 0.4rem;
-    font-size: 0.2rem;
-    padding: 0 0.06rem;
+  .periodic-legend-button {
+    font-size: 0.82rem !important;
   }
 }
 

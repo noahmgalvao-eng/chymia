@@ -14,7 +14,7 @@ export type SimulationInsets = {
 };
 
 export type SimulationChromeLayout = {
-  computedDesktopMarginBottom: number | string | undefined;
+  computedContainerMarginBottom: number | string | undefined;
   computedFullscreenHeight: number | string | undefined;
   periodicBottomDockOffset: number;
   controlIconStyle: React.CSSProperties;
@@ -25,6 +25,21 @@ export type SimulationChromeLayout = {
   leftControlsPositionClass: 'absolute' | 'fixed';
   gridClass: string;
 };
+
+function isIOSLikeTouchDevice(): boolean {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+    return false;
+  }
+
+  const hasTouchSupport = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  if (!hasTouchSupport) {
+    return false;
+  }
+
+  const userAgent = navigator.userAgent || '';
+  return /iPad|iPhone|iPod/.test(userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
 
 export function getSimulationChromeLayout({
   count,
@@ -54,26 +69,38 @@ export function getSimulationChromeLayout({
     userAgent?.device?.type === 'desktop' ||
     (!userAgent && isDesktopViewport) ||
     (userAgent?.device?.type === 'unknown' && isDesktopViewport);
+  const shouldUseIosFullscreenReserve = !isDesktopApp && isFullscreen && isIOSLikeTouchDevice();
+  const visualViewportHeight = typeof window !== 'undefined'
+    ? (window.visualViewport?.height ?? window.innerHeight)
+    : undefined;
+  const effectiveViewportHeight = typeof visualViewportHeight === 'number' && Number.isFinite(visualViewportHeight)
+    ? (typeof maxHeight === 'number' ? Math.min(maxHeight, visualViewportHeight) : visualViewportHeight)
+    : maxHeight;
   const desktopBottomInset = isDesktopApp && isFullscreen ? 0.22 : 0;
-  const computedDesktopMarginBottom =
-    isDesktopApp && isFullscreen
+  const iosBottomReserve = shouldUseIosFullscreenReserve ? Math.max(0, insets.bottom + 16) : 0;
+  const computedContainerMarginBottom =
+    shouldUseIosFullscreenReserve
+      ? iosBottomReserve
+      : isDesktopApp && isFullscreen
       ? (typeof maxHeight === 'number' ? Math.max(0, maxHeight * desktopBottomInset) : '18vh')
       : undefined;
   const computedFullscreenHeight =
     isFullscreen
-      ? (typeof maxHeight === 'number'
+      ? (typeof effectiveViewportHeight === 'number'
           ? Math.max(
               0,
-              maxHeight - (typeof computedDesktopMarginBottom === 'number' ? computedDesktopMarginBottom : 0),
+              effectiveViewportHeight - (typeof computedContainerMarginBottom === 'number' ? computedContainerMarginBottom : 0),
             )
           : (isDesktopApp ? '82vh' : undefined))
       : undefined;
-  const periodicBottomDockOffset = isDesktopApp ? 0 : (16 + insets.bottom);
+  const periodicBottomDockOffset = isDesktopApp
+    ? 0
+    : (shouldUseIosFullscreenReserve ? 16 : (16 + insets.bottom));
   const iconScale = isDesktopApp ? 1.2 : 1.15;
   const controlIconSizePx = `${(16 * iconScale).toFixed(2)}px`;
 
   return {
-    computedDesktopMarginBottom,
+    computedContainerMarginBottom,
     computedFullscreenHeight,
     periodicBottomDockOffset,
     controlIconStyle: { width: controlIconSizePx, height: controlIconSizePx },

@@ -158,7 +158,7 @@ function App() {
       style={{
         maxHeight: isFullscreen ? layout.computedFullscreenHeight : undefined,
         height: isFullscreen ? layout.computedFullscreenHeight : undefined,
-        marginBottom: layout.computedDesktopMarginBottom,
+        marginBottom: layout.computedContainerMarginBottom,
       }}
     >
       {simulationViewport}

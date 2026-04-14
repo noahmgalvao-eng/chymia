@@ -180,14 +180,29 @@ type ReactionPillStyle = React.CSSProperties & {
   '--button-ring-color'?: string;
 };
 
+type PeriodicGridStyle = React.CSSProperties & {
+  '--periodic-grid-gap'?: string;
+  '--periodic-cell-size'?: string;
+  '--periodic-cell-inset'?: string;
+  '--periodic-cell-number-size'?: string;
+  '--periodic-cell-symbol-size'?: string;
+  '--periodic-cell-symbol-top'?: string;
+  '--periodic-cell-index-size'?: string;
+  '--periodic-cell-index-box'?: string;
+};
+
 const DEFAULT_TEMPERATURE_K = 298.15;
 const DEFAULT_PRESSURE_PA = 101325;
+const PERIODIC_GRID_COLUMNS = 18;
+const PERIODIC_GRID_GAP_COUNT = PERIODIC_GRID_COLUMNS - 1;
 const TEMP_UNIT_SYMBOLS: Record<TempUnit, string> = {
   K: 'K',
   C: '°C',
   F: '°F',
   Ra: '°Ra',
 };
+
+const clampSize = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 const getElementTone = (symbol: string, position: { xpos: number; ypos: number }): ElementTone => {
   if (AMETAIS.has(symbol)) return 'ametais';
@@ -269,10 +284,12 @@ const PeriodicTableSelector: React.FC<Props> = ({
   } | null>(null);
   const dragHandleRef = useRef<HTMLDivElement | null>(null);
   const sheetSurfaceRef = useRef<HTMLDivElement | null>(null);
+  const gridRef = useRef<HTMLDivElement | null>(null);
   const dragRafRef = useRef<number | null>(null);
   const pendingDragOffset = useRef(0);
   const latestDragOffset = useRef(0);
   const [closedTranslateY, setClosedTranslateY] = useState(720);
+  const [gridMetrics, setGridMetrics] = useState({ cellSize: 18, gap: 1 });
 
   const visibleElements = useMemo(() => getLocalizedElements(locale), [locale]);
 
@@ -469,6 +486,22 @@ const PeriodicTableSelector: React.FC<Props> = ({
     ? `${formatNumber(Number(displayedPressure.toPrecision(6)), { maximumSignificantDigits: 6 })} ${pressureUnit}`
     : `0 ${pressureUnit}`;
   const isSliderActive = activeSlider !== null;
+  const periodicGridStyle = useMemo<PeriodicGridStyle>(() => {
+    const cellSize = gridMetrics.cellSize > 0 ? gridMetrics.cellSize : 18;
+    const resolvedGap = gridMetrics.gap > 0 ? gridMetrics.gap : 1;
+    const symbolTop = cellSize < 19 ? '74%' : cellSize < 21 ? '69%' : cellSize < 24 ? '64%' : '58%';
+
+    return {
+      '--periodic-grid-gap': `${resolvedGap}px`,
+      '--periodic-cell-size': `${cellSize}px`,
+      '--periodic-cell-inset': `${clampSize(cellSize * 0.08, 2, 6)}px`,
+      '--periodic-cell-number-size': `${clampSize(cellSize * 0.18, 7, 12)}px`,
+      '--periodic-cell-symbol-size': `${clampSize(cellSize * 0.38, 10, 20)}px`,
+      '--periodic-cell-symbol-top': symbolTop,
+      '--periodic-cell-index-size': `${clampSize(cellSize * 0.18, 7, 11)}px`,
+      '--periodic-cell-index-box': `${clampSize(cellSize * 0.26, 11, 18)}px`,
+    };
+  }, [gridMetrics.cellSize, gridMetrics.gap]);
 
   const activateSlider = useCallback((slider: 'temperature' | 'pressure') => {
     activeSliderRef.current = slider;
@@ -568,30 +601,70 @@ const PeriodicTableSelector: React.FC<Props> = ({
     return () => window.removeEventListener('resize', measure);
   }, []);
 
+  useEffect(() => {
+    const node = gridRef.current;
+    if (!node) return;
+
+    const measure = () => {
+      const styles = window.getComputedStyle(node);
+      const gapValue = Number.parseFloat(styles.columnGap || styles.gap || '0');
+      const resolvedGap = Number.isFinite(gapValue) ? gapValue : 0;
+      const width = node.getBoundingClientRect().width;
+      const nextCellSize = Math.max(0, (width - (resolvedGap * PERIODIC_GRID_GAP_COUNT)) / PERIODIC_GRID_COLUMNS);
+
+      setGridMetrics((current) => {
+        const sizeChanged = Math.abs(current.cellSize - nextCellSize) > 0.5;
+        const gapChanged = Math.abs(current.gap - resolvedGap) > 0.25;
+        return sizeChanged || gapChanged
+          ? { cellSize: nextCellSize, gap: resolvedGap }
+          : current;
+      });
+    };
+
+    measure();
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(() => measure());
+      observer.observe(node);
+      return () => observer.disconnect();
+    }
+
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [isOpen]);
+
   return (
     <>
       {isOpen && <div className="fixed inset-0 z-[110] bg-black/30" onClick={() => onOpenChange(false)} aria-hidden="true" />}
 
-      <section
-        className="absolute inset-x-0 z-[120] px-0 pb-0"
+      <div
+        className="absolute inset-x-0 top-0 bottom-0 z-[120] flex items-end overflow-hidden px-0 pb-0"
         style={{
-          bottom: `${bottomDockOffset}px`,
-          transform: `translateY(${isOpen ? dragOffset : closedTranslateY}px)`,
-          transition: isDraggingSheet ? 'none' : 'transform 200ms cubic-bezier(0.22, 1, 0.36, 1)',
+          paddingBottom: `${Math.max(bottomDockOffset, 0)}px`,
           pointerEvents: isOpen ? 'auto' : 'none',
-          willChange: isDraggingSheet || isSliderActive ? 'transform, opacity' : undefined,
         }}
       >
-        <div
-          ref={sheetSurfaceRef}
-          className={`periodic-sheet mx-auto w-full max-w-5xl rounded-t-3xl sm:p-2 transition-opacity duration-200 ease-out ${isDraggingSheet || isSliderActive ? 'periodic-sheet-interacting' : ''} ${isSliderActive ? 'border-transparent bg-transparent shadow-none' : 'periodic-sheet-surface border border-default shadow-2xl'}`}
+        <section
+          className="max-h-full w-full px-0 pb-0"
           style={{
-            maxHeight: `min(calc(100% - ${Math.max(bottomDockOffset, 0)}px), calc(100dvh - ${Math.max(bottomDockOffset, 0) + 8}px))`,
-            overflowY: 'hidden',
-            overscrollBehavior: 'none',
-            touchAction: 'manipulation',
+            transform: `translateY(${isOpen ? dragOffset : closedTranslateY}px)`,
+            transition: isDraggingSheet ? 'none' : 'transform 200ms cubic-bezier(0.22, 1, 0.36, 1), opacity 160ms ease-out',
+            opacity: isOpen ? 1 : 0,
+            visibility: isOpen ? 'visible' : 'hidden',
+            pointerEvents: isOpen ? 'auto' : 'none',
+            willChange: isDraggingSheet || isSliderActive ? 'transform, opacity' : undefined,
           }}
         >
+          <div
+            ref={sheetSurfaceRef}
+            className={`periodic-sheet mx-auto max-h-full w-full max-w-5xl rounded-t-3xl sm:p-2 transition-opacity duration-200 ease-out ${isDraggingSheet || isSliderActive ? 'periodic-sheet-interacting' : ''} ${isSliderActive ? 'border-transparent bg-transparent shadow-none' : 'periodic-sheet-surface border border-default shadow-2xl'}`}
+            style={{
+              maxHeight: '100%',
+              overflowY: 'hidden',
+              overscrollBehavior: 'none',
+              touchAction: 'manipulation',
+            }}
+          >
           <div
             className="mx-auto mb-0 flex w-full max-w-xl flex-col items-center"
           >
@@ -732,86 +805,89 @@ const PeriodicTableSelector: React.FC<Props> = ({
             </div>
           </div>
 
-          <div className={`relative mb-0.5 flex items-center justify-between gap-2 transition-opacity duration-200 ease-out ${isSliderActive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-            <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2">
-              <div className="pointer-events-auto">
-                <Popover>
-                  <Popover.Trigger>
-                    <Button color="secondary" variant="outline" size="sm">
-                      {messages.periodicTable.legend}
-                    </Button>
-                  </Popover.Trigger>
-                  <Popover.Content
-                    side="top"
-                    align="center"
-                    sideOffset={8}
-                    minWidth={210}
-                    maxWidth={248}
-                    className="periodic-legend-popover z-[130]"
-                  >
-                    <div className="p-3">
-                      <ul className="periodic-legend-list">
-                        {LEGEND_ITEMS.map((item) => (
-                          <li key={item} className="periodic-legend-item">
-                            <span
-                              className="periodic-legend-swatch"
-                              style={{ '--legend-swatch-color': TONE_STYLES[item].base } as LegendSwatchStyle}
-                            />
-                            <p className="periodic-legend-label text-xs text-secondary">{messages.periodicTable.legendItems[item]}</p>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </Popover.Content>
-                </Popover>
-              </div>
+          <div className={`periodic-toolbar mb-0.5 transition-opacity duration-200 ease-out ${isSliderActive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+            <div className="periodic-toolbar-mode">
+              <SegmentedControl
+                aria-label={messages.periodicTable.selectionMode}
+                value={isMultiSelect ? 'compare' : 'single'}
+                size="sm"
+                className="periodic-selection-control"
+                onChange={(next) => {
+                  if ((next === 'compare') !== isMultiSelect) {
+                    onToggleMultiSelect();
+                  }
+                }}
+              >
+                <SegmentedControl.Option value="single">{messages.periodicTable.single}</SegmentedControl.Option>
+                <SegmentedControl.Option value="compare">{messages.periodicTable.compare}</SegmentedControl.Option>
+              </SegmentedControl>
             </div>
 
-            <SegmentedControl
-              aria-label={messages.periodicTable.selectionMode}
-              value={isMultiSelect ? 'compare' : 'single'}
-              size="sm"
-              onChange={(next) => {
-                if ((next === 'compare') !== isMultiSelect) {
-                  onToggleMultiSelect();
-                }
-              }}
-            >
-              <SegmentedControl.Option value="single">{messages.periodicTable.single}</SegmentedControl.Option>
-              <SegmentedControl.Option value="compare">{messages.periodicTable.compare}</SegmentedControl.Option>
-            </SegmentedControl>
+            <div className="periodic-toolbar-legend">
+              <Popover>
+                <Popover.Trigger>
+                  <Button color="secondary" variant="outline" size="sm" className="periodic-legend-button">
+                    {messages.periodicTable.legend}
+                  </Button>
+                </Popover.Trigger>
+                <Popover.Content
+                  side="top"
+                  align="center"
+                  sideOffset={8}
+                  minWidth={210}
+                  maxWidth={248}
+                  className="periodic-legend-popover z-[130]"
+                >
+                  <div className="p-3">
+                    <ul className="periodic-legend-list">
+                      {LEGEND_ITEMS.map((item) => (
+                        <li key={item} className="periodic-legend-item">
+                          <span
+                            className="periodic-legend-swatch"
+                            style={{ '--legend-swatch-color': TONE_STYLES[item].base } as LegendSwatchStyle}
+                          />
+                          <p className="periodic-legend-label text-xs text-secondary">{messages.periodicTable.legendItems[item]}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </Popover.Content>
+              </Popover>
+            </div>
 
-            <div className="flex items-center gap-2">
-              <div className="flex shrink-0 -space-x-2">
-                {selectedPreview.map((element) => {
-                  const toneStyle = getToneStyleBySymbol(element.symbol);
-                  const avatarStyle: PreviewAvatarStyle | undefined = toneStyle
-                    ? { '--preview-avatar-color': toneStyle.base }
-                    : element.category === 'reaction_product'
-                      ? { '--preview-avatar-color': element.visualDNA.solid.color }
-                      : undefined;
+            <div className="periodic-toolbar-status">
+              <div className="periodic-toolbar-status-group">
+                <div className="flex shrink-0 -space-x-2">
+                  {selectedPreview.map((element) => {
+                    const toneStyle = getToneStyleBySymbol(element.symbol);
+                    const avatarStyle: PreviewAvatarStyle | undefined = toneStyle
+                      ? { '--preview-avatar-color': toneStyle.base }
+                      : element.category === 'reaction_product'
+                        ? { '--preview-avatar-color': element.visualDNA.solid.color }
+                        : undefined;
 
-                  return (
-                    <span
-                      key={element.atomicNumber}
-                      className="periodic-preview-avatar flex size-6 shrink-0 items-center justify-center rounded-full border border-default text-[10px] font-semibold"
-                      style={avatarStyle}
-                      title={element.name}
-                    >
-                      {getAvatarLabel(element)}
-                    </span>
-                  );
-                })}
+                    return (
+                      <span
+                        key={element.atomicNumber}
+                        className="periodic-preview-avatar flex size-6 shrink-0 items-center justify-center rounded-full border border-default text-[10px] font-semibold"
+                        style={avatarStyle}
+                        title={element.name}
+                      >
+                        {getAvatarLabel(element)}
+                      </span>
+                    );
+                  })}
+                </div>
+                <Badge color={isMultiSelect ? 'info' : 'secondary'} variant="soft">
+                  {selectedElements.length}/6
+                </Badge>
               </div>
-              <Badge color={isMultiSelect ? 'info' : 'secondary'} variant="soft">
-                {selectedElements.length}/6
-              </Badge>
             </div>
           </div>
 
           <div className={`${isSliderActive ? 'opacity-0' : 'opacity-100'} transition-opacity duration-200 ease-out`}>
             <div className="periodic-grid-scroll">
-              <div className="periodic-grid">
+              <div ref={gridRef} className="periodic-grid" style={periodicGridStyle}>
                 {reactionProducts.length > 0 && (
                   <div className="periodic-reaction-cluster">
                     <p className="periodic-reaction-label">{messages.periodicTable.substances}</p>
@@ -917,6 +993,7 @@ const PeriodicTableSelector: React.FC<Props> = ({
           </div>
         </div>
       </section>
+      </div>
     </>
   );
 };

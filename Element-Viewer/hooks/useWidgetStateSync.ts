@@ -2,7 +2,6 @@ import {
   useCallback,
   useEffect,
   useRef,
-  useState,
   type Dispatch,
   type MutableRefObject,
   type SetStateAction,
@@ -25,23 +24,6 @@ import type { ChemicalElement, PhysicsState } from '../types';
 
 const isAndroidLikeDevice = () =>
   typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
-
-const isIPhoneDevice = () =>
-  typeof navigator !== 'undefined' && /iPhone/i.test(navigator.userAgent);
-
-const formatWidgetStateNumber = (value: number, digits: number) => {
-  if (!Number.isFinite(value)) return '0';
-  return Number(value.toFixed(digits)).toString();
-};
-
-const buildWidgetStateStatusText = (
-  selectedElements: ChemicalElement[],
-  temperature: number,
-  pressure: number,
-) => {
-  const symbols = selectedElements.map((element) => element.symbol).join(', ') || '-';
-  return `Elementos: ${symbols} | T: ${formatWidgetStateNumber(temperature, 2)} K | P: ${formatWidgetStateNumber(pressure, 2)} Pa`;
-};
 
 export function useWidgetStateSync({
   locale,
@@ -76,7 +58,6 @@ export function useWidgetStateSync({
   const localeRef = useRef(locale);
   const syncStateToChatGPTRef = useRef<() => Promise<void>>(async () => {});
   const scheduledSyncRef = useRef<number | null>(null);
-  const [widgetStateStatusText, setWidgetStateStatusText] = useState<string | null>(null);
 
   useEffect(() => {
     reactionProductsCacheRef.current = reactionProductsCache;
@@ -87,9 +68,7 @@ export function useWidgetStateSync({
   }, [locale]);
 
   const syncStateToChatGPT = useCallback(async () => {
-    const shouldShowStatus = isIPhoneDevice();
     if (typeof window === 'undefined' || !window.openai?.setWidgetState) {
-      if (shouldShowStatus) setWidgetStateStatusText('ERRO');
       return;
     }
 
@@ -120,12 +99,8 @@ export function useWidgetStateSync({
           pressure,
         ),
       );
-      if (shouldShowStatus) {
-        setWidgetStateStatusText(buildWidgetStateStatusText(selectedElements, temperature, pressure));
-      }
     } catch (error) {
       console.error('Failed to sync widget state to ChatGPT:', error);
-      if (shouldShowStatus) setWidgetStateStatusText('ERRO');
     }
   }, [messages, pressure, selectedElements, simulationRegistry, temperature]);
 
@@ -244,6 +219,5 @@ export function useWidgetStateSync({
   return {
     syncStateToChatGPT,
     scheduleSyncStateToChatGPT,
-    widgetStateStatusText,
   };
 }

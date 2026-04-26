@@ -15,6 +15,9 @@ const StandaloneWebsiteShell = React.lazy(
   () => import('./components/standalone/StandaloneWebsiteShell'),
 );
 
+const isIPhoneDevice = () =>
+  typeof navigator !== 'undefined' && /iPhone/i.test(navigator.userAgent);
+
 function App() {
   const { locale, messages, setLocale, availableLocales } = useI18n();
   const localizedElements = React.useMemo(() => getLocalizedElements(locale), [locale]);
@@ -22,6 +25,7 @@ function App() {
   const hostEnvironment = useHostEnvironment();
   const isStandaloneWebapp = hostEnvironment === 'standalone';
   const { logEvent } = useTelemetry();
+  const [infoButtonStatusText, setInfoButtonStatusText] = React.useState<string | null>(null);
   const controller = useSimulationController({
     defaultElement,
     localizedElements,
@@ -78,18 +82,37 @@ function App() {
     await handleToggleFullscreen(event);
   };
 
-  const handleInfoButtonClickWithTelemetry = async (event: React.MouseEvent) => {
-    event.stopPropagation();
-    const didTrigger = await triggerInfoButtonAction();
+  const handleInfoButtonResult = (didTrigger: boolean) => {
+    if (isIPhoneDevice()) {
+      setInfoButtonStatusText(didTrigger ? 'botão clicado' : 'erro');
+    }
+
     if (didTrigger) {
       logEvent('AI_INFO_CLICK', getSimulationContext());
     }
   };
 
+  const handleInfoButtonClickWithTelemetry = async (event: React.MouseEvent) => {
+    event.stopPropagation();
+
+    try {
+      handleInfoButtonResult(await triggerInfoButtonAction());
+    } catch (error) {
+      if (isIPhoneDevice()) {
+        setInfoButtonStatusText('erro');
+      }
+      console.error('Failed to trigger info button action:', error);
+    }
+  };
+
   const triggerInfoButtonActionWithTelemetry = async () => {
-    const didTrigger = await triggerInfoButtonAction();
-    if (didTrigger) {
-      logEvent('AI_INFO_CLICK', getSimulationContext());
+    try {
+      handleInfoButtonResult(await triggerInfoButtonAction());
+    } catch (error) {
+      if (isIPhoneDevice()) {
+        setInfoButtonStatusText('erro');
+      }
+      console.error('Failed to trigger info button action:', error);
     }
   };
 
@@ -126,7 +149,7 @@ function App() {
       showParticles={controller.showParticles}
       temperature={controller.temperature}
       timeScale={controller.timeScale}
-      widgetStateStatusText={controller.widgetStateStatusText}
+      statusText={infoButtonStatusText}
       onCloseContextMenu={controller.handleCloseContextMenu}
       onCloseRecordingResults={controller.handleCloseRecordingResults}
       onContextMenuTemperatureChange={controller.handleContextMenuTemperatureChange}

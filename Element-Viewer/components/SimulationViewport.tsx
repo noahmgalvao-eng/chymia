@@ -45,7 +45,7 @@ export default function SimulationViewport({
   showParticles,
   temperature,
   timeScale,
-  widgetStateStatusText,
+  statusText,
   onCloseContextMenu,
   onCloseRecordingResults,
   onContextMenuTemperatureChange,
@@ -86,7 +86,7 @@ export default function SimulationViewport({
   showParticles: boolean;
   temperature: number;
   timeScale: number;
-  widgetStateStatusText: string | null;
+  statusText: string | null;
   onCloseContextMenu: () => void;
   onCloseRecordingResults: () => void;
   onContextMenuTemperatureChange: (temperature: number) => void;
@@ -312,12 +312,12 @@ export default function SimulationViewport({
         </div>
       )}
 
-      {widgetStateStatusText && (
+      {statusText && (
         <div
           className="pointer-events-none absolute left-1/2 z-[140] max-w-[calc(100%-7rem)] -translate-x-1/2 truncate rounded-full border border-default bg-surface px-2.5 py-1 text-[11px] font-semibold text-default shadow"
           style={{ top: `${Math.max(8, 8 + insets.top)}px` }}
         >
-          {widgetStateStatusText}
+          {statusText}
         </div>
       )}
       <main className={`h-full w-full grid gap-px bg-border-subtle ${layout.gridClass}`}>

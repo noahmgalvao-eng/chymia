@@ -276,7 +276,7 @@
   --periodic-cell-index-size: 7px;
   --periodic-cell-index-box: 11px;
   --button-radius: clamp(0.28rem, 1.1vw, 0.58rem);
-  --selection-ring-border-width: 3px;
+  --selection-ring-border-width: 2px;
   --selection-ring-inner-width: 2px;
   --selection-ring-inner-color: #ffffff;
   --selection-ring-outer-width: 3px;

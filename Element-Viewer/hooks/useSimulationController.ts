@@ -171,7 +171,6 @@ export function useSimulationController({
   const {
     syncStateToChatGPT,
     scheduleSyncStateToChatGPT,
-    widgetStateStatusText,
   } = useWidgetStateSync({
     locale,
     messages,
@@ -502,7 +501,6 @@ export function useSimulationController({
     hasUsedPeriodicTableControl,
     isRecording,
     recordingResults,
-    widgetStateStatusText,
     syncStateToChatGPT,
     setTemperature,
     setPressure,

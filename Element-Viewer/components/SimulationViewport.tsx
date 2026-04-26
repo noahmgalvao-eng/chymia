@@ -1,6 +1,5 @@
 import { Button } from '@openai/apps-sdk-ui/components/Button';
 import {
-  ChatTripleDots,
   Collapse,
   Expand,
   LightbulbGlow,
@@ -13,7 +12,7 @@ import {
 } from '@openai/apps-sdk-ui/components/Icon';
 import { Popover } from '@openai/apps-sdk-ui/components/Popover';
 import { Tooltip } from '@openai/apps-sdk-ui/components/Tooltip';
-import { useCallback, type MouseEvent, type PointerEvent, type TouchEvent } from 'react';
+import type { MouseEvent } from 'react';
 import type { SimulationChromeLayout } from '../app/simulationLayout';
 import type { ContextMenuData } from '../app/appDefinitions';
 import type { RecordingResult } from '../hooks/useSimulationController';
@@ -45,12 +44,9 @@ export default function SimulationViewport({
   showParticles,
   temperature,
   timeScale,
-  statusText,
   onCloseContextMenu,
   onCloseRecordingResults,
   onContextMenuTemperatureChange,
-  onInfoButtonClick,
-  onInfoButtonPress,
   onInspect,
   onOpenSidebarChange,
   onPeriodicTableButtonClick,
@@ -86,12 +82,9 @@ export default function SimulationViewport({
   showParticles: boolean;
   temperature: number;
   timeScale: number;
-  statusText: string | null;
   onCloseContextMenu: () => void;
   onCloseRecordingResults: () => void;
   onContextMenuTemperatureChange: (temperature: number) => void;
-  onInfoButtonClick: (event: MouseEvent) => Promise<void>;
-  onInfoButtonPress: () => Promise<void>;
   onInspect: (element: ChemicalElement) => (event: MouseEvent, physics: PhysicsState) => void;
   onOpenSidebarChange: (open: boolean) => void;
   onPeriodicTableButtonClick: () => void;
@@ -111,20 +104,6 @@ export default function SimulationViewport({
   onToggleSpeed: (event: MouseEvent) => void;
 }) {
   const count = selectedElements.length;
-  const handleInfoButtonTouchEnd = useCallback((event: TouchEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-    void onInfoButtonPress();
-  }, [onInfoButtonPress]);
-  const handleInfoButtonPointerUp = useCallback((event: PointerEvent) => {
-    if (event.pointerType === 'mouse') {
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-    void onInfoButtonPress();
-  }, [onInfoButtonPress]);
 
   return (
     <>
@@ -233,30 +212,6 @@ export default function SimulationViewport({
             </span>
           </Tooltip>
 
-          <Tooltip content={messages.app.controls.askChatGPTAboutSimulation} contentClassName={TOOLTIP_CLASS}>
-            <span>
-              <Button
-                color="info"
-                variant="soft"
-                pill
-                uniform
-                className={layout.desktopUniformButtonClass}
-                onClick={onInfoButtonClick}
-                onPointerUpCapture={handleInfoButtonPointerUp}
-                onTouchEndCapture={handleInfoButtonTouchEnd}
-                style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-              >
-                <ChatTripleDots
-                  style={{
-                    ...layout.controlIconStyle,
-                    color: 'var(--color-background-info-solid)',
-                    fill: 'currentColor',
-                  }}
-                />
-              </Button>
-            </span>
-          </Tooltip>
-
           <Popover>
             <Popover.Trigger>
               <Button
@@ -288,6 +243,7 @@ export default function SimulationViewport({
               <div className="space-y-2 p-3 text-sm text-default">
                 <p className="heading-xs text-default">{messages.app.assistantPopover.title}</p>
                 <ol className="list-decimal space-y-2 pl-4">
+                  <li>{messages.app.assistantPopover.itemFour}</li>
                   <li>
                     {messages.app.assistantPopover.itemOne}
                     <p className="italic text-secondary text-xs">
@@ -301,7 +257,6 @@ export default function SimulationViewport({
                     </p>
                   </li>
                   <li>{messages.app.assistantPopover.itemThree}</li>
-                  <li>{messages.app.assistantPopover.itemFour}</li>
                 </ol>
                 <p className="border-t border-subtle pt-2 text-xs italic text-secondary">
                   {messages.app.assistantPopover.footer}
@@ -312,14 +267,6 @@ export default function SimulationViewport({
         </div>
       )}
 
-      {statusText && (
-        <div
-          className="pointer-events-none absolute left-1/2 z-[140] max-w-[calc(100%-7rem)] -translate-x-1/2 truncate rounded-full border border-default bg-surface px-2.5 py-1 text-[11px] font-semibold text-default shadow"
-          style={{ top: `${Math.max(8, 8 + insets.top)}px` }}
-        >
-          {statusText}
-        </div>
-      )}
       <main className={`h-full w-full grid gap-px bg-border-subtle ${layout.gridClass}`}>
         {selectedElements.map((element) => (
           <div key={element.atomicNumber} className="relative h-full w-full bg-surface-secondary">

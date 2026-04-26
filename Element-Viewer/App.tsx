@@ -15,9 +15,6 @@ const StandaloneWebsiteShell = React.lazy(
   () => import('./components/standalone/StandaloneWebsiteShell'),
 );
 
-const isIPhoneDevice = () =>
-  typeof navigator !== 'undefined' && /iPhone/i.test(navigator.userAgent);
-
 function App() {
   const { locale, messages, setLocale, availableLocales } = useI18n();
   const localizedElements = React.useMemo(() => getLocalizedElements(locale), [locale]);
@@ -25,7 +22,6 @@ function App() {
   const hostEnvironment = useHostEnvironment();
   const isStandaloneWebapp = hostEnvironment === 'standalone';
   const { logEvent } = useTelemetry();
-  const [infoButtonStatusText, setInfoButtonStatusText] = React.useState<string | null>(null);
   const controller = useSimulationController({
     defaultElement,
     localizedElements,
@@ -41,12 +37,7 @@ function App() {
     safeArea,
     isFullscreen,
     requestDisplayMode,
-    handleInfoClick,
-  } = useElementViewerChat({
-    globalTemperature: controller.temperature,
-    globalPressure: controller.pressure,
-    selectedElements: controller.selectedElements,
-  });
+  } = useElementViewerChat();
 
   useDocumentTheme(theme);
 
@@ -57,14 +48,9 @@ function App() {
     right: safeArea?.insets?.right ?? 0,
   };
 
-  const {
-    handleToggleFullscreen,
-    triggerInfoButtonAction,
-  } = useAppChatControls({
+  const { handleToggleFullscreen } = useAppChatControls({
     requestDisplayMode,
     isFullscreen,
-    syncStateToChatGPT: controller.syncStateToChatGPT,
-    handleInfoClick,
   });
 
   const getSimulationContext = () =>
@@ -80,40 +66,6 @@ function App() {
       ...getSimulationContext(),
     });
     await handleToggleFullscreen(event);
-  };
-
-  const handleInfoButtonResult = (didTrigger: boolean) => {
-    if (isIPhoneDevice()) {
-      setInfoButtonStatusText(didTrigger ? 'botão clicado' : 'erro');
-    }
-
-    if (didTrigger) {
-      logEvent('AI_INFO_CLICK', getSimulationContext());
-    }
-  };
-
-  const handleInfoButtonClickWithTelemetry = async (event: React.MouseEvent) => {
-    event.stopPropagation();
-
-    try {
-      handleInfoButtonResult(await triggerInfoButtonAction());
-    } catch (error) {
-      if (isIPhoneDevice()) {
-        setInfoButtonStatusText('erro');
-      }
-      console.error('Failed to trigger info button action:', error);
-    }
-  };
-
-  const triggerInfoButtonActionWithTelemetry = async () => {
-    try {
-      handleInfoButtonResult(await triggerInfoButtonAction());
-    } catch (error) {
-      if (isIPhoneDevice()) {
-        setInfoButtonStatusText('erro');
-      }
-      console.error('Failed to trigger info button action:', error);
-    }
   };
 
   const handlePromptHelpClick = () => {
@@ -149,12 +101,9 @@ function App() {
       showParticles={controller.showParticles}
       temperature={controller.temperature}
       timeScale={controller.timeScale}
-      statusText={infoButtonStatusText}
       onCloseContextMenu={controller.handleCloseContextMenu}
       onCloseRecordingResults={controller.handleCloseRecordingResults}
       onContextMenuTemperatureChange={controller.handleContextMenuTemperatureChange}
-      onInfoButtonClick={handleInfoButtonClickWithTelemetry}
-      onInfoButtonPress={triggerInfoButtonActionWithTelemetry}
       onInspect={controller.handleInspect}
       onOpenSidebarChange={controller.setSidebarOpen}
       onPeriodicTableButtonClick={controller.handlePeriodicTableButtonClick}

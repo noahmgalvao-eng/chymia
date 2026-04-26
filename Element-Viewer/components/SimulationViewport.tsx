@@ -13,7 +13,7 @@ import {
 } from '@openai/apps-sdk-ui/components/Icon';
 import { Popover } from '@openai/apps-sdk-ui/components/Popover';
 import { Tooltip } from '@openai/apps-sdk-ui/components/Tooltip';
-import { useCallback, type MouseEvent, type PointerEvent, type TouchEvent } from 'react';
+import type { MouseEvent } from 'react';
 import type { SimulationChromeLayout } from '../app/simulationLayout';
 import type { ContextMenuData } from '../app/appDefinitions';
 import type { RecordingResult } from '../hooks/useSimulationController';
@@ -50,7 +50,6 @@ export default function SimulationViewport({
   onCloseRecordingResults,
   onContextMenuTemperatureChange,
   onInfoButtonClick,
-  onInfoButtonPress,
   onInspect,
   onOpenSidebarChange,
   onPeriodicTableButtonClick,
@@ -91,7 +90,6 @@ export default function SimulationViewport({
   onCloseRecordingResults: () => void;
   onContextMenuTemperatureChange: (temperature: number) => void;
   onInfoButtonClick: (event: MouseEvent) => Promise<void>;
-  onInfoButtonPress: () => Promise<void>;
   onInspect: (element: ChemicalElement) => (event: MouseEvent, physics: PhysicsState) => void;
   onOpenSidebarChange: (open: boolean) => void;
   onPeriodicTableButtonClick: () => void;
@@ -111,20 +109,6 @@ export default function SimulationViewport({
   onToggleSpeed: (event: MouseEvent) => void;
 }) {
   const count = selectedElements.length;
-  const handleInfoButtonTouchEnd = useCallback((event: TouchEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-    void onInfoButtonPress();
-  }, [onInfoButtonPress]);
-  const handleInfoButtonPointerUp = useCallback((event: PointerEvent) => {
-    if (event.pointerType === 'mouse') {
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-    void onInfoButtonPress();
-  }, [onInfoButtonPress]);
 
   return (
     <>
@@ -242,8 +226,6 @@ export default function SimulationViewport({
                 uniform
                 className={layout.desktopUniformButtonClass}
                 onClick={onInfoButtonClick}
-                onPointerUpCapture={handleInfoButtonPointerUp}
-                onTouchEndCapture={handleInfoButtonTouchEnd}
                 style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
               >
                 <ChatTripleDots
@@ -320,6 +302,7 @@ export default function SimulationViewport({
           {statusText}
         </div>
       )}
+
       <main className={`h-full w-full grid gap-px bg-border-subtle ${layout.gridClass}`}>
         {selectedElements.map((element) => (
           <div key={element.atomicNumber} className="relative h-full w-full bg-surface-secondary">

@@ -2,8 +2,6 @@ import React, { useEffect, useRef, type MutableRefObject } from 'react';
 import { MatterState, Particle, ParticleState, PhysicsState, ViewBoxDimensions } from '../../types';
 import { interpolateValue } from '../../utils/interpolator';
 import {
-  getMatterPathFromProgress,
-  getMatterRenderTransform,
   getParticleVibration,
 } from '../../utils/evaporationLayout';
 import {
@@ -47,8 +45,6 @@ type CanvasParticleNode = {
 
 const PARTICLE_RENDER_GRID_CELL_SIZE = 14;
 const MAX_CANVAS_DPR = 2;
-const NOISE_TEXTURE_SIZE = 96;
-const PATH_CACHE_LIMIT = 32;
 const TAU = Math.PI * 2;
 
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
@@ -106,53 +102,6 @@ const getTrappedParticleAnchor = (
   return { x: particle.homeX, y: particle.homeY };
 };
 
-const ensurePathCacheLimit = (cache: Map<string, Path2D>) => {
-  while (cache.size > PATH_CACHE_LIMIT) {
-    const firstKey = cache.keys().next().value;
-    if (!firstKey) break;
-    cache.delete(firstKey);
-  }
-};
-
-const getCachedPath2D = (cache: Map<string, Path2D>, pathData: string) => {
-  let path = cache.get(pathData);
-  if (path) {
-    return path;
-  }
-
-  path = new Path2D(pathData);
-  cache.set(pathData, path);
-  ensurePathCacheLimit(cache);
-  return path;
-};
-
-const createNoiseTexture = () => {
-  if (typeof document === 'undefined') {
-    return null;
-  }
-
-  const canvas = document.createElement('canvas');
-  canvas.width = NOISE_TEXTURE_SIZE;
-  canvas.height = NOISE_TEXTURE_SIZE;
-
-  const ctx = canvas.getContext('2d');
-  if (!ctx) {
-    return null;
-  }
-
-  const imageData = ctx.createImageData(NOISE_TEXTURE_SIZE, NOISE_TEXTURE_SIZE);
-  for (let index = 0; index < imageData.data.length; index += 4) {
-    const noise = Math.floor(Math.random() * 255);
-    imageData.data[index] = noise;
-    imageData.data[index + 1] = noise;
-    imageData.data[index + 2] = noise;
-    imageData.data[index + 3] = 52 + Math.floor(Math.random() * 96);
-  }
-
-  ctx.putImageData(imageData, 0, 0);
-  return canvas;
-};
-
 const clearCanvas = (
   ctx: CanvasRenderingContext2D,
   canvas: HTMLCanvasElement,
@@ -174,196 +123,6 @@ const applyWorldTransform = (
   const offsetY = ((metrics.pixelHeight - (viewBounds.height * scale)) / 2) - (viewBounds.minY * scale);
 
   ctx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
-};
-
-const shouldShowSteamEffect = (state: MatterState) => (
-  state === MatterState.BOILING
-  || state === MatterState.EQUILIBRIUM_BOIL
-  || state === MatterState.TRANSITION_SCF
-  || state === MatterState.EQUILIBRIUM_TRIPLE
-  || state === MatterState.SUBLIMATION
-  || state === MatterState.EQUILIBRIUM_SUB
-);
-
-const getSteamStrength = (physics: PhysicsState) => {
-  switch (physics.state) {
-    case MatterState.BOILING:
-    case MatterState.EQUILIBRIUM_BOIL:
-      return 0.22 + (physics.boilProgress * 0.35);
-    case MatterState.TRANSITION_SCF:
-      return 0.32 + (physics.scfTransitionProgress * 0.24);
-    case MatterState.EQUILIBRIUM_TRIPLE:
-      return 0.22;
-    case MatterState.SUBLIMATION:
-    case MatterState.EQUILIBRIUM_SUB:
-      return 0.16 + (physics.sublimationProgress * 0.18);
-    default:
-      return 0;
-  }
-};
-
-const drawNoiseFill = (
-  ctx: CanvasRenderingContext2D,
-  texture: HTMLCanvasElement | null,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  offsetX: number,
-  offsetY: number,
-  alpha: number,
-) => {
-  if (!texture || alpha <= 0 || width <= 0 || height <= 0) {
-    return;
-  }
-
-  const pattern = ctx.createPattern(texture, 'repeat');
-  if (!pattern) {
-    return;
-  }
-
-  ctx.save();
-  ctx.globalAlpha = alpha;
-  ctx.translate(offsetX, offsetY);
-  ctx.fillStyle = pattern;
-  ctx.fillRect(x - offsetX, y - offsetY, width, height);
-  ctx.restore();
-};
-
-const drawBackgroundEffects = (
-  ctx: CanvasRenderingContext2D,
-  physics: PhysicsState,
-  palette: CanvasPalette,
-  viewBounds: ViewBoxDimensions,
-  metrics: CanvasViewportMetrics,
-  noiseTexture: HTMLCanvasElement | null,
-  pathCache: Map<string, Path2D>,
-) => {
-  const steamStrength = shouldShowSteamEffect(physics.state) ? getSteamStrength(physics) : 0;
-  const showScfFog =
-    (physics.state === MatterState.SUPERCRITICAL || physics.state === MatterState.TRANSITION_SCF)
-    && physics.scfOpacity > 0.01;
-
-  if (steamStrength <= 0.001 && !showScfFog) {
-    return;
-  }
-
-  applyWorldTransform(ctx, metrics, viewBounds);
-
-  if (steamStrength > 0.001 && physics.pathProgress < 9.9) {
-    const pathData = getMatterPathFromProgress(physics.pathProgress, 0.01);
-    const matterPath = getCachedPath2D(pathCache, pathData);
-    const { scaleX, scaleY, centerX, centerY } = getMatterRenderTransform(
-      physics.matterRect,
-      physics.meltProgress,
-      physics.state,
-    );
-
-    ctx.save();
-    ctx.translate(centerX, centerY);
-    ctx.scale(scaleX, scaleY);
-    ctx.globalAlpha = steamStrength;
-    if ('filter' in ctx) {
-      ctx.filter = 'blur(18px)';
-    }
-    ctx.fillStyle = palette.gasColor;
-    ctx.fill(matterPath);
-    ctx.translate(0, -18 / Math.max(0.32, Math.abs(scaleY)));
-    ctx.globalAlpha = steamStrength * 0.65;
-    ctx.fill(matterPath);
-    ctx.restore();
-
-    const plumeHeight = Math.max(34, physics.matterRect.h * 0.9);
-    ctx.save();
-    if ('filter' in ctx) {
-      ctx.filter = 'blur(10px)';
-    }
-    ctx.globalAlpha = steamStrength * 0.18;
-    ctx.fillStyle = palette.gasColor;
-    for (let index = 0; index < 5; index += 1) {
-      const ratio = (index + 0.5) / 5;
-      const plumeX = physics.matterRect.x + (physics.matterRect.w * ratio);
-      const sway = Math.sin((physics.simTime * 1.6) + (index * 1.35)) * 7;
-      const plumeY = physics.matterRect.y - (plumeHeight * (0.42 + (ratio * 0.18)));
-      ctx.beginPath();
-      ctx.ellipse(
-        plumeX + sway,
-        plumeY,
-        16 + (steamStrength * 18),
-        22 + (steamStrength * 24),
-        0,
-        0,
-        TAU,
-      );
-      ctx.fill();
-    }
-    ctx.restore();
-
-    drawNoiseFill(
-      ctx,
-      noiseTexture,
-      physics.matterRect.x - 18,
-      physics.matterRect.y - plumeHeight,
-      physics.matterRect.w + 36,
-      plumeHeight + 18,
-      (physics.simTime * 14) % NOISE_TEXTURE_SIZE,
-      (-physics.simTime * 18) % NOISE_TEXTURE_SIZE,
-      steamStrength * 0.1,
-    );
-  }
-
-  if (showScfFog) {
-    const fogPadding = 20;
-    const fogX = physics.gasBounds.minX - fogPadding;
-    const fogY = physics.gasBounds.minY - fogPadding;
-    const fogWidth = (physics.gasBounds.maxX - physics.gasBounds.minX) + (fogPadding * 2);
-    const fogHeight = (physics.gasBounds.maxY - physics.gasBounds.minY) + (fogPadding * 2);
-
-    ctx.save();
-    if ('filter' in ctx) {
-      ctx.filter = 'blur(14px)';
-    }
-    ctx.globalAlpha = physics.scfOpacity * 0.55;
-    ctx.fillStyle = palette.gasColor;
-    ctx.fillRect(fogX, fogY, fogWidth, fogHeight);
-    ctx.restore();
-
-    ctx.save();
-    if ('filter' in ctx) {
-      ctx.filter = 'blur(18px)';
-    }
-    ctx.globalAlpha = physics.scfOpacity * 0.32;
-    ctx.fillStyle = palette.gasColor;
-    for (let index = 0; index < 6; index += 1) {
-      const ratio = (index + 1) / 7;
-      const ellipseX = physics.gasBounds.minX + (fogWidth * ratio) + (Math.sin(physics.simTime + index) * 10);
-      const ellipseY = physics.gasBounds.minY + (fogHeight * (0.15 + (ratio * 0.62)));
-      ctx.beginPath();
-      ctx.ellipse(
-        ellipseX,
-        ellipseY,
-        Math.max(18, fogWidth * 0.16),
-        Math.max(18, fogHeight * 0.1),
-        0,
-        0,
-        TAU,
-      );
-      ctx.fill();
-    }
-    ctx.restore();
-
-    drawNoiseFill(
-      ctx,
-      noiseTexture,
-      fogX,
-      fogY,
-      fogWidth,
-      fogHeight,
-      (physics.simTime * 10) % NOISE_TEXTURE_SIZE,
-      (physics.simTime * 8) % NOISE_TEXTURE_SIZE,
-      physics.scfOpacity * 0.14,
-    );
-  }
 };
 
 const resolveParticleNodes = (
@@ -571,13 +330,10 @@ const ParticleCanvasLayerComponent: React.FC<ParticleCanvasLayerProps> = ({
   showParticles,
   viewBounds,
 }) => {
-  const backgroundCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const foregroundCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const viewportMetricsRef = useRef<CanvasViewportMetrics>({ pixelWidth: 0, pixelHeight: 0 });
   const renderGridRef = useRef(createSpatialGrid(PARTICLE_RENDER_GRID_CELL_SIZE));
   const trappedParticleCacheRef = useRef<Map<number, { x: number; y: number }>>(new Map());
-  const pathCacheRef = useRef<Map<string, Path2D>>(new Map());
-  const noiseTextureRef = useRef<HTMLCanvasElement | null>(null);
   const redrawVersionRef = useRef(0);
 
   useEffect(() => {
@@ -585,17 +341,10 @@ const ParticleCanvasLayerComponent: React.FC<ParticleCanvasLayerProps> = ({
   }, [palette, showParticles, viewBounds]);
 
   useEffect(() => {
-    if (!noiseTextureRef.current) {
-      noiseTextureRef.current = createNoiseTexture();
-    }
-  }, []);
-
-  useEffect(() => {
-    const backgroundCanvas = backgroundCanvasRef.current;
     const foregroundCanvas = foregroundCanvasRef.current;
     const container = foregroundCanvas?.parentElement;
 
-    if (!backgroundCanvas || !foregroundCanvas || !container) {
+    if (!foregroundCanvas || !container) {
       return undefined;
     }
 
@@ -609,11 +358,9 @@ const ParticleCanvasLayerComponent: React.FC<ParticleCanvasLayerProps> = ({
         pixelHeight,
       };
 
-      for (const canvas of [backgroundCanvas, foregroundCanvas]) {
-        if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
-          canvas.width = pixelWidth;
-          canvas.height = pixelHeight;
-        }
+      if (foregroundCanvas.width !== pixelWidth || foregroundCanvas.height !== pixelHeight) {
+        foregroundCanvas.width = pixelWidth;
+        foregroundCanvas.height = pixelHeight;
       }
 
       redrawVersionRef.current += 1;
@@ -635,9 +382,8 @@ const ParticleCanvasLayerComponent: React.FC<ParticleCanvasLayerProps> = ({
     let lastRedrawVersion = -1;
 
     const drawFrame = () => {
-      const backgroundCanvas = backgroundCanvasRef.current;
       const foregroundCanvas = foregroundCanvasRef.current;
-      if (!backgroundCanvas || !foregroundCanvas) {
+      if (!foregroundCanvas) {
         animationFrameId = requestAnimationFrame(drawFrame);
         return;
       }
@@ -646,25 +392,13 @@ const ParticleCanvasLayerComponent: React.FC<ParticleCanvasLayerProps> = ({
       const redrawVersion = redrawVersionRef.current;
 
       if (frameVersion !== lastFrameVersion || redrawVersion !== lastRedrawVersion) {
-        const backgroundCtx = backgroundCanvas.getContext('2d');
         const foregroundCtx = foregroundCanvas.getContext('2d');
         const metrics = viewportMetricsRef.current;
 
-        if (backgroundCtx && foregroundCtx && metrics.pixelWidth > 0 && metrics.pixelHeight > 0) {
-          clearCanvas(backgroundCtx, backgroundCanvas);
+        if (foregroundCtx && metrics.pixelWidth > 0 && metrics.pixelHeight > 0) {
           clearCanvas(foregroundCtx, foregroundCanvas);
 
           const livePhysics = livePhysicsRef.current;
-          drawBackgroundEffects(
-            backgroundCtx,
-            livePhysics,
-            palette,
-            viewBounds,
-            metrics,
-            noiseTextureRef.current,
-            pathCacheRef.current,
-          );
-
           const nextTrappedParticleCache = new Map<number, { x: number; y: number }>();
           drawParticles(
             foregroundCtx,
@@ -694,16 +428,10 @@ const ParticleCanvasLayerComponent: React.FC<ParticleCanvasLayerProps> = ({
   }, [liveFrameRef, livePhysicsRef, palette, showParticles, viewBounds]);
 
   return (
-    <>
-      <canvas
-        ref={backgroundCanvasRef}
-        className="pointer-events-none absolute inset-0 z-0 h-full w-full"
-      />
-      <canvas
-        ref={foregroundCanvasRef}
-        className="pointer-events-none absolute inset-0 z-20 h-full w-full"
-      />
-    </>
+    <canvas
+      ref={foregroundCanvasRef}
+      className="pointer-events-none absolute inset-0 z-20 h-full w-full"
+    />
   );
 };
 

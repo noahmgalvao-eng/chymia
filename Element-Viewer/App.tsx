@@ -82,26 +82,40 @@ function App() {
     await handleToggleFullscreen(event);
   };
 
+  const handleInfoButtonResult = (didTrigger: boolean) => {
+    if (isIPhoneDevice()) {
+      setInfoButtonStatusText(didTrigger ? 'botão clicado' : 'erro');
+    }
+
+    if (didTrigger) {
+      logEvent('AI_INFO_CLICK', getSimulationContext());
+    }
+  };
+
   const handleInfoButtonClickWithTelemetry = async (event: React.MouseEvent) => {
     event.stopPropagation();
-    const shouldShowStatus = isIPhoneDevice();
 
     try {
-      const didTrigger = await triggerInfoButtonAction();
-      if (shouldShowStatus) {
-        setInfoButtonStatusText(didTrigger ? 'botão clicado' : 'erro');
-      }
-
-      if (didTrigger) {
-        logEvent('AI_INFO_CLICK', getSimulationContext());
-      }
+      handleInfoButtonResult(await triggerInfoButtonAction());
     } catch (error) {
-      if (shouldShowStatus) {
+      if (isIPhoneDevice()) {
         setInfoButtonStatusText('erro');
       }
       console.error('Failed to trigger info button action:', error);
     }
   };
+
+  const triggerInfoButtonActionWithTelemetry = async () => {
+    try {
+      handleInfoButtonResult(await triggerInfoButtonAction());
+    } catch (error) {
+      if (isIPhoneDevice()) {
+        setInfoButtonStatusText('erro');
+      }
+      console.error('Failed to trigger info button action:', error);
+    }
+  };
+
   const handlePromptHelpClick = () => {
     logEvent('AI_PROMPT_HELP_CLICK', getSimulationContext());
   };
@@ -140,6 +154,7 @@ function App() {
       onCloseRecordingResults={controller.handleCloseRecordingResults}
       onContextMenuTemperatureChange={controller.handleContextMenuTemperatureChange}
       onInfoButtonClick={handleInfoButtonClickWithTelemetry}
+      onInfoButtonPress={triggerInfoButtonActionWithTelemetry}
       onInspect={controller.handleInspect}
       onOpenSidebarChange={controller.setSidebarOpen}
       onPeriodicTableButtonClick={controller.handlePeriodicTableButtonClick}
@@ -163,10 +178,10 @@ function App() {
   const embeddedViewport = (
     <div
       data-simulation-shell="true"
-      className="relative w-screen overflow-hidden bg-surface text-default"
+      className={`relative w-screen overflow-hidden bg-surface text-default ${isFullscreen ? 'h-screen' : 'h-[600px]'}`}
       style={{
-        maxHeight: layout.computedContainerHeight,
-        height: layout.computedContainerHeight,
+        maxHeight: isFullscreen ? layout.computedFullscreenHeight : undefined,
+        height: isFullscreen ? layout.computedFullscreenHeight : undefined,
         marginBottom: layout.computedContainerMarginBottom,
       }}
     >

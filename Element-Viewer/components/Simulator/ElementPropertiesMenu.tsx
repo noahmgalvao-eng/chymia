@@ -9,7 +9,7 @@ import {
 } from '@openai/apps-sdk-ui/components/Icon';
 import { Popover } from '@openai/apps-sdk-ui/components/Popover';
 import { CopyTooltip } from '@openai/apps-sdk-ui/components/Tooltip';
-import { ChemicalElement, MatterState, PhysicsState, SET_GLOBALS_EVENT_TYPE } from '../../types';
+import { ChemicalElement, MatterState, PhysicsState } from '../../types';
 import { SOURCE_DATA } from '../../data/periodic_table_source';
 import { calculatePhaseBoundaries, predictMatterState } from '../../hooks/physics/phaseCalculations';
 import { useI18n } from '../../i18n';
@@ -93,22 +93,12 @@ const getViewportMetrics = () => {
     };
   }
 
-  const sdkMaxHeight = window.openai?.maxHeight;
-  const sdkDisplayMode = window.openai?.displayMode;
-  const documentWidth = document.documentElement.clientWidth || 1366;
-  const documentHeight = document.documentElement.clientHeight || 768;
-  const fallbackHeight = sdkDisplayMode === 'fullscreen'
-    ? documentHeight
-    : Math.min(documentHeight, 768);
-
+  const visualViewport = window.visualViewport;
   return {
-    width: documentWidth,
-    height:
-      typeof sdkMaxHeight === 'number' && Number.isFinite(sdkMaxHeight)
-        ? sdkMaxHeight
-        : fallbackHeight,
-    offsetLeft: 0,
-    offsetTop: 0,
+    width: visualViewport?.width ?? window.innerWidth,
+    height: visualViewport?.height ?? window.innerHeight,
+    offsetLeft: visualViewport?.offsetLeft ?? 0,
+    offsetTop: visualViewport?.offsetTop ?? 0,
   };
 };
 
@@ -283,8 +273,9 @@ const PhaseActionButton: React.FC<PhaseActionButtonProps> = ({
             color="secondary"
             variant="soft"
             size="2xs"
+            uniform
             pill
-            className="absolute right-1 top-1 z-20 px-1.5 py-0.5 text-[10px] font-bold leading-none"
+            className="absolute right-1 top-1 z-20 h-5 min-h-5 w-5 min-w-5 p-0 text-[10px] font-bold"
             aria-label={messages.common.helpAria(label)}
             onClick={(event) => event.stopPropagation()}
           >
@@ -329,11 +320,13 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
 
     syncViewport();
     window.addEventListener('resize', syncViewport);
-    window.addEventListener(SET_GLOBALS_EVENT_TYPE, syncViewport);
+    window.visualViewport?.addEventListener('resize', syncViewport);
+    window.visualViewport?.addEventListener('scroll', syncViewport);
 
     return () => {
       window.removeEventListener('resize', syncViewport);
-      window.removeEventListener(SET_GLOBALS_EVENT_TYPE, syncViewport);
+      window.visualViewport?.removeEventListener('resize', syncViewport);
+      window.visualViewport?.removeEventListener('scroll', syncViewport);
     };
   }, []);
 

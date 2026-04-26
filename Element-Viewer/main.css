@@ -390,12 +390,13 @@
 
 :where([data-theme="light"]) .periodic-cell-selected::after,
 :where([data-theme="light"]) .periodic-reaction-pill-selected::after {
-  box-shadow:
-    0 0 0 var(--selection-ring-border-width, 3px) #000000,
-    inset 0 0 0 var(--selection-ring-inner-width, 2px) var(--selection-ring-inner-color, #ffffff),
-    0 0 0 calc(var(--selection-ring-border-width, 3px) + var(--selection-ring-outer-width, 3px))
-      color-mix(in oklab, #000000 var(--selection-ring-outer-mix, 42%), transparent),
-    0 8px 14px color-mix(in oklab, #000000 var(--selection-ring-shadow-mix, 30%), transparent) !important;
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: var(--selection-ring-border-width, 3px) solid #000000;
+  border-radius: inherit;
+  box-shadow: none !important;
+  pointer-events: none;
 }
 
 .periodic-legend-popover {

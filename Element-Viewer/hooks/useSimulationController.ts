@@ -6,6 +6,10 @@ import {
 } from '../app/selection';
 import { getSelectedAtomicNumbers } from '../app/telemetry';
 import {
+  readLocalJson,
+  writeLocalJson,
+} from '../infrastructure/browser/localStorage';
+import {
   readSessionBoolean,
   writeSessionBoolean,
 } from '../infrastructure/browser/sessionStorage';
@@ -15,11 +19,108 @@ import type { TelemetryData, TelemetryEventName } from './useTelemetry';
 import { useWidgetStateSync } from './useWidgetStateSync';
 
 const PERIODIC_TABLE_CONTROL_SESSION_KEY = 'element-viewer-periodic-table-control-used';
+const SIMULATION_STATE_STORAGE_KEY = 'element-viewer-simulation-state-v1';
+const DEFAULT_TEMPERATURE_K = 298.15;
+const DEFAULT_PRESSURE_PA = 101325;
+const DEFAULT_TIME_SCALE = 1;
+const VALID_TIME_SCALES = new Set([0.25, 0.5, 1, 2, 4]);
 
 export type RecordingResult = {
   element: ChemicalElement;
   start: PhysicsState;
   end: PhysicsState;
+};
+
+type PersistedSimulationState = {
+  isMultiSelect?: unknown;
+  isPaused?: unknown;
+  isSidebarOpen?: unknown;
+  pressure?: unknown;
+  reactionProductsCache?: unknown;
+  selectedElements?: unknown;
+  showParticles?: unknown;
+  temperature?: unknown;
+  timeScale?: unknown;
+};
+
+type RestoredSimulationState = {
+  isMultiSelect: boolean;
+  isPaused: boolean;
+  isSidebarOpen: boolean;
+  pressure: number;
+  reactionProductsCache: ChemicalElement[];
+  selectedElements: ChemicalElement[];
+  showParticles: boolean;
+  temperature: number;
+  timeScale: number;
+};
+
+const isFiniteNumber = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value);
+
+const isChemicalElementLike = (value: unknown): value is ChemicalElement => {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<ChemicalElement>;
+  return (
+    typeof candidate.atomicNumber === 'number' &&
+    typeof candidate.symbol === 'string' &&
+    typeof candidate.name === 'string' &&
+    typeof candidate.category === 'string'
+  );
+};
+
+const sanitizeReactionProducts = (value: unknown): ChemicalElement[] =>
+  Array.isArray(value) ? value.filter(isChemicalElementLike).slice(0, 12) : [];
+
+const resolvePersistedElement = (
+  element: ChemicalElement,
+  localizedElements: ChemicalElement[],
+  reactionProductsCache: ChemicalElement[],
+): ChemicalElement | null => {
+  if (element.category === 'reaction_product') {
+    return reactionProductsCache.find(
+      (reaction) =>
+        reaction.atomicNumber === element.atomicNumber ||
+        reaction.symbol === element.symbol,
+    ) ?? element;
+  }
+
+  return localizedElements.find(
+    (candidate) =>
+      candidate.atomicNumber === element.atomicNumber ||
+      candidate.symbol === element.symbol,
+  ) ?? null;
+};
+
+const resolvePersistedState = (
+  defaultElement: ChemicalElement | undefined,
+  localizedElements: ChemicalElement[],
+): RestoredSimulationState | null => {
+  const persisted = readLocalJson<PersistedSimulationState>(SIMULATION_STATE_STORAGE_KEY);
+  if (!persisted) return null;
+
+  const reactionProductsCache = sanitizeReactionProducts(persisted.reactionProductsCache);
+  const selectedElements = Array.isArray(persisted.selectedElements)
+    ? persisted.selectedElements
+        .filter(isChemicalElementLike)
+        .map((element) => resolvePersistedElement(element, localizedElements, reactionProductsCache))
+        .filter((element): element is ChemicalElement => Boolean(element))
+        .slice(0, 6)
+    : [];
+
+  return {
+    isMultiSelect: typeof persisted.isMultiSelect === 'boolean' ? persisted.isMultiSelect : false,
+    isPaused: typeof persisted.isPaused === 'boolean' ? persisted.isPaused : false,
+    isSidebarOpen: typeof persisted.isSidebarOpen === 'boolean' ? persisted.isSidebarOpen : true,
+    pressure: isFiniteNumber(persisted.pressure) ? Math.max(0, persisted.pressure) : DEFAULT_PRESSURE_PA,
+    reactionProductsCache,
+    selectedElements: selectedElements.length > 0 ? selectedElements : (defaultElement ? [defaultElement] : []),
+    showParticles: typeof persisted.showParticles === 'boolean' ? persisted.showParticles : false,
+    temperature: isFiniteNumber(persisted.temperature) ? Math.max(0, persisted.temperature) : DEFAULT_TEMPERATURE_K,
+    timeScale: isFiniteNumber(persisted.timeScale) && VALID_TIME_SCALES.has(persisted.timeScale)
+      ? persisted.timeScale
+      : DEFAULT_TIME_SCALE,
+  };
 };
 
 export function useSimulationController({
@@ -35,17 +136,25 @@ export function useSimulationController({
   messages: Messages;
   logEvent: (event: TelemetryEventName, data?: TelemetryData) => void;
 }) {
+  const restoredStateRef = useRef<RestoredSimulationState | null | undefined>(undefined);
+  if (restoredStateRef.current === undefined) {
+    restoredStateRef.current = resolvePersistedState(defaultElement, localizedElements);
+  }
+  const restoredState = restoredStateRef.current;
+
   const [selectedElements, setSelectedElements] = useState<ChemicalElement[]>(() =>
-    defaultElement ? [defaultElement] : [],
+    restoredState?.selectedElements ?? (defaultElement ? [defaultElement] : []),
   );
-  const [reactionProductsCache, setReactionProductsCache] = useState<ChemicalElement[]>([]);
-  const [isMultiSelect, setIsMultiSelect] = useState(false);
-  const [temperature, setTemperature] = useState<number>(298.15);
-  const [pressure, setPressure] = useState<number>(101325);
-  const [showParticles, setShowParticles] = useState(false);
-  const [isSidebarOpen, setSidebarOpen] = useState(true);
-  const [timeScale, setTimeScale] = useState<number>(1);
-  const [isPaused, setIsPaused] = useState(false);
+  const [reactionProductsCache, setReactionProductsCache] = useState<ChemicalElement[]>(
+    () => restoredState?.reactionProductsCache ?? [],
+  );
+  const [isMultiSelect, setIsMultiSelect] = useState(() => restoredState?.isMultiSelect ?? false);
+  const [temperature, setTemperature] = useState<number>(() => restoredState?.temperature ?? DEFAULT_TEMPERATURE_K);
+  const [pressure, setPressure] = useState<number>(() => restoredState?.pressure ?? DEFAULT_PRESSURE_PA);
+  const [showParticles, setShowParticles] = useState(() => restoredState?.showParticles ?? false);
+  const [isSidebarOpen, setSidebarOpen] = useState(() => restoredState?.isSidebarOpen ?? true);
+  const [timeScale, setTimeScale] = useState<number>(() => restoredState?.timeScale ?? DEFAULT_TIME_SCALE);
+  const [isPaused, setIsPaused] = useState(() => restoredState?.isPaused ?? false);
   const [contextMenu, setContextMenu] = useState<ContextMenuData | null>(null);
   const [hasUsedPeriodicTableControl, setHasUsedPeriodicTableControl] = useState<boolean>(() =>
     readSessionBoolean(PERIODIC_TABLE_CONTROL_SESSION_KEY),
@@ -56,6 +165,8 @@ export function useSimulationController({
 
   const simulationRegistry = useRef<Map<number, () => PhysicsState>>(new Map());
   const selectedElementsRef = useRef<ChemicalElement[]>(selectedElements);
+  const persistStateTimeoutRef = useRef<number | null>(null);
+  const latestSimulationStateRef = useRef<RestoredSimulationState | null>(null);
 
   const {
     syncStateToChatGPT,
@@ -79,6 +190,72 @@ export function useSimulationController({
   useEffect(() => {
     selectedElementsRef.current = selectedElements;
   }, [selectedElements]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    latestSimulationStateRef.current = {
+      isMultiSelect,
+      isPaused,
+      isSidebarOpen,
+      pressure,
+      reactionProductsCache,
+      selectedElements,
+      showParticles,
+      temperature,
+      timeScale,
+    };
+
+    if (persistStateTimeoutRef.current !== null) {
+      window.clearTimeout(persistStateTimeoutRef.current);
+    }
+
+    persistStateTimeoutRef.current = window.setTimeout(() => {
+      persistStateTimeoutRef.current = null;
+      writeLocalJson(SIMULATION_STATE_STORAGE_KEY, latestSimulationStateRef.current);
+    }, 120);
+
+    return () => {
+      if (persistStateTimeoutRef.current !== null) {
+        window.clearTimeout(persistStateTimeoutRef.current);
+        persistStateTimeoutRef.current = null;
+      }
+    };
+  }, [
+    isMultiSelect,
+    isPaused,
+    isSidebarOpen,
+    pressure,
+    reactionProductsCache,
+    selectedElements,
+    showParticles,
+    temperature,
+    timeScale,
+  ]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const persistLatestState = () => {
+      if (latestSimulationStateRef.current) {
+        writeLocalJson(SIMULATION_STATE_STORAGE_KEY, latestSimulationStateRef.current);
+      }
+    };
+    const persistWhenHidden = () => {
+      if (document.visibilityState === 'hidden') {
+        persistLatestState();
+      }
+    };
+
+    window.addEventListener('pagehide', persistLatestState);
+    document.addEventListener('visibilitychange', persistWhenHidden);
+
+    return () => {
+      window.removeEventListener('pagehide', persistLatestState);
+      document.removeEventListener('visibilitychange', persistWhenHidden);
+      persistLatestState();
+    };
+  }, []);
 
   useEffect(() => {
     const localizeNaturalElement = (element: ChemicalElement): ChemicalElement => {

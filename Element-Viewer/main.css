@@ -383,6 +383,17 @@
     0 8px 14px color-mix(in oklab, var(--button-ring-color, #111111) var(--selection-ring-shadow-mix, 30%), transparent);
 }
 
+:where([data-theme="dark"]) .periodic-cell-selected::after,
+:where([data-theme="dark"]) .periodic-reaction-pill-selected::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: var(--selection-ring-border-width, 3px) solid #ffffff;
+  border-radius: inherit;
+  box-shadow: none !important;
+  pointer-events: none;
+}
+
 :where([data-theme="light"]) .periodic-cell-selected,
 :where([data-theme="light"]) .periodic-reaction-pill-selected {
   --button-ring-color: #000000 !important;

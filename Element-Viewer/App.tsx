@@ -126,6 +126,7 @@ function App() {
       showParticles={controller.showParticles}
       temperature={controller.temperature}
       timeScale={controller.timeScale}
+      widgetStateStatusText={controller.widgetStateStatusText}
       onCloseContextMenu={controller.handleCloseContextMenu}
       onCloseRecordingResults={controller.handleCloseRecordingResults}
       onContextMenuTemperatureChange={controller.handleContextMenuTemperatureChange}

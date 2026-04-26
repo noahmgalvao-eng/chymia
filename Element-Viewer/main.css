@@ -305,6 +305,13 @@
   opacity: 1 !important;
 }
 
+.periodic-grid-android-text .periodic-cell-number,
+.periodic-grid-android-text .periodic-cell-symbol {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+  text-shadow: 0 0 0 currentColor;
+}
+
 .periodic-cell-number {
   position: absolute;
   inset-block-start: var(--periodic-cell-inset);
@@ -374,6 +381,11 @@
     0 0 0 calc(var(--selection-ring-border-width, 3px) + var(--selection-ring-outer-width, 3px))
       color-mix(in oklab, var(--button-ring-color, #111111) var(--selection-ring-outer-mix, 42%), transparent),
     0 8px 14px color-mix(in oklab, var(--button-ring-color, #111111) var(--selection-ring-shadow-mix, 30%), transparent);
+}
+
+:where([data-theme="light"]) .periodic-cell-selected,
+:where([data-theme="light"]) .periodic-reaction-pill-selected {
+  --button-ring-color: #000000 !important;
 }
 
 .periodic-legend-popover {

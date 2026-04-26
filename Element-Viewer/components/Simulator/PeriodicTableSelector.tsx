@@ -249,6 +249,12 @@ const getReactionRingColor = (hexColor: string, textColor: string): string => {
   return `color-mix(in oklab, ${hexColor} 78%, ${contrastAnchor} 22%)`;
 };
 
+const isAndroidLikeDevice = () =>
+  typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
+
+const supportsPointerEvents = () =>
+  typeof window !== 'undefined' && 'PointerEvent' in window;
+
 const PeriodicTableSelector: React.FC<Props> = ({
   selectedElements,
   onSelect,
@@ -286,12 +292,18 @@ const PeriodicTableSelector: React.FC<Props> = ({
   const sheetSurfaceRef = useRef<HTMLDivElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const dragRafRef = useRef<number | null>(null);
+  const selectionRafRef = useRef<number | null>(null);
   const pendingDragOffset = useRef(0);
   const latestDragOffset = useRef(0);
   const [closedTranslateY, setClosedTranslateY] = useState(720);
   const [gridMetrics, setGridMetrics] = useState({ cellSize: 18, gap: 1 });
+  const isAndroidDevice = useMemo(() => isAndroidLikeDevice(), []);
+  const hasPointerEvents = useMemo(() => supportsPointerEvents(), []);
 
   const visibleElements = useMemo(() => getLocalizedElements(locale), [locale]);
+  const selectedElementIndexByAtomicNumber = useMemo(() => {
+    return new Map(selectedElements.map((element, index) => [element.atomicNumber, index]));
+  }, [selectedElements]);
 
   const selectedPreview = useMemo(() => selectedElements.slice(0, 6), [selectedElements]);
   const getAvatarLabel = useCallback((element: ChemicalElement) => {
@@ -337,13 +349,29 @@ const PeriodicTableSelector: React.FC<Props> = ({
       at: now,
     };
 
-    if (source === 'reaction_product') {
-      onSelectReactionProduct(element);
+    const commitSelection = () => {
+      if (source === 'reaction_product') {
+        onSelectReactionProduct(element);
+        return;
+      }
+
+      onSelect(element);
+    };
+
+    if (isAndroidDevice && typeof requestAnimationFrame !== 'undefined') {
+      if (selectionRafRef.current !== null) {
+        cancelAnimationFrame(selectionRafRef.current);
+      }
+
+      selectionRafRef.current = requestAnimationFrame(() => {
+        selectionRafRef.current = null;
+        commitSelection();
+      });
       return;
     }
 
-    onSelect(element);
-  }, [onSelect, onSelectReactionProduct]);
+    commitSelection();
+  }, [isAndroidDevice, onSelect, onSelectReactionProduct]);
 
   const shouldIgnoreSyntheticClick = useCallback((
     atomicNumber: number,
@@ -361,20 +389,20 @@ const PeriodicTableSelector: React.FC<Props> = ({
     element: ChemicalElement,
   ) => {
     if (event.pointerType === 'mouse') return;
-    event.preventDefault();
+    if (!isAndroidDevice) event.preventDefault();
     event.stopPropagation();
     triggerImmediateSelection(element, 'periodic_table');
-  }, [triggerImmediateSelection]);
+  }, [isAndroidDevice, triggerImmediateSelection]);
 
   const handleReactionPillPointerDown = useCallback((
     event: React.PointerEvent,
     element: ChemicalElement,
   ) => {
     if (event.pointerType === 'mouse') return;
-    event.preventDefault();
+    if (!isAndroidDevice) event.preventDefault();
     event.stopPropagation();
     triggerImmediateSelection(element, 'reaction_product');
-  }, [triggerImmediateSelection]);
+  }, [isAndroidDevice, triggerImmediateSelection]);
 
   const handlePeriodicCellTouchStart = useCallback((
     event: React.TouchEvent,
@@ -508,6 +536,13 @@ const PeriodicTableSelector: React.FC<Props> = ({
     setActiveSlider((current) => (current === slider ? current : slider));
   }, []);
 
+  const clearSelectionAnimation = useCallback(() => {
+    if (selectionRafRef.current) {
+      cancelAnimationFrame(selectionRafRef.current);
+      selectionRafRef.current = null;
+    }
+  }, []);
+
   const releaseActiveSlider = useCallback(() => {
     activeSliderRef.current = null;
     setActiveSlider((current) => (current === null ? current : null));
@@ -571,8 +606,9 @@ const PeriodicTableSelector: React.FC<Props> = ({
   useEffect(() => {
     return () => {
       clearDragAnimation();
+      clearSelectionAnimation();
     };
-  }, [clearDragAnimation]);
+  }, [clearDragAnimation, clearSelectionAnimation]);
 
   useEffect(() => {
     if (isOpen) return;
@@ -647,7 +683,9 @@ const PeriodicTableSelector: React.FC<Props> = ({
         <section
           className="max-h-full w-full px-0 pb-0"
           style={{
-            transform: `translateY(${isOpen ? dragOffset : closedTranslateY}px)`,
+            transform: isAndroidDevice && isOpen && dragOffset === 0
+              ? 'none'
+              : `translateY(${isOpen ? dragOffset : closedTranslateY}px)`,
             transition: isDraggingSheet ? 'none' : 'transform 200ms cubic-bezier(0.22, 1, 0.36, 1), opacity 160ms ease-out',
             opacity: isOpen ? 1 : 0,
             visibility: isOpen ? 'visible' : 'hidden',
@@ -891,13 +929,17 @@ const PeriodicTableSelector: React.FC<Props> = ({
 
           <div className={`${isSliderActive ? 'opacity-0' : 'opacity-100'} transition-opacity duration-200 ease-out`}>
             <div className="periodic-grid-scroll">
-              <div ref={gridRef} className="periodic-grid" style={periodicGridStyle}>
+              <div
+                ref={gridRef}
+                className={`periodic-grid ${isAndroidDevice ? 'periodic-grid-android-text' : ''}`}
+                style={periodicGridStyle}
+              >
                 {reactionProducts.length > 0 && (
                   <div className="periodic-reaction-cluster">
                     <p className="periodic-reaction-label">{messages.periodicTable.substances}</p>
                     <div className="periodic-reaction-list">
                       {reactionProducts.map((reaction) => {
-                        const isSelected = selectedElements.some((selected) => selected.atomicNumber === reaction.atomicNumber);
+                        const isSelected = selectedElementIndexByAtomicNumber.has(reaction.atomicNumber);
                         const reactionTone = TONE_STYLES.outrosMetais;
                         const reactionColor = reactionTone.base;
                         const textColor = getReadableTextColor(reactionColor);
@@ -925,7 +967,7 @@ const PeriodicTableSelector: React.FC<Props> = ({
                               onSelectReactionProduct(reaction);
                             }}
                             onPointerDown={(event) => handleReactionPillPointerDown(event, reaction)}
-                            onTouchStart={(event) => handleReactionPillTouchStart(event, reaction)}
+                            onTouchStart={hasPointerEvents ? undefined : (event) => handleReactionPillTouchStart(event, reaction)}
                             className={`periodic-reaction-pill relative z-[5] text-xs font-semibold ${isSelected ? 'periodic-reaction-pill-selected' : ''}`}
                             style={reactionStyle}
                             title={reaction.name}
@@ -942,10 +984,8 @@ const PeriodicTableSelector: React.FC<Props> = ({
                   const position = POSITION_BY_SYMBOL.get(el.symbol);
                   if (!position) return null;
 
-                  const isSelected = selectedElements.some((selected) => selected.atomicNumber === el.atomicNumber);
-                  const selectionIndex = selectedElements.findIndex(
-                    (selected) => selected.atomicNumber === el.atomicNumber,
-                  );
+                  const selectionIndex = selectedElementIndexByAtomicNumber.get(el.atomicNumber) ?? -1;
+                  const isSelected = selectionIndex !== -1;
                   const tone = getElementTone(el.symbol, position);
                   const toneStyle = TONE_STYLES[tone];
                   const cellStyle: PeriodicCellStyle = {
@@ -973,7 +1013,7 @@ const PeriodicTableSelector: React.FC<Props> = ({
                         onSelect(el);
                       }}
                       onPointerDown={(event) => handlePeriodicCellPointerDown(event, el)}
-                      onTouchStart={(event) => handlePeriodicCellTouchStart(event, el)}
+                      onTouchStart={hasPointerEvents ? undefined : (event) => handlePeriodicCellTouchStart(event, el)}
                       className={`periodic-cell ${isSelected ? 'periodic-cell-selected' : ''}`}
                       style={cellStyle}
                     >

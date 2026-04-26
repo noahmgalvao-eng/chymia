@@ -57,7 +57,11 @@ export function useSimulationController({
   const simulationRegistry = useRef<Map<number, () => PhysicsState>>(new Map());
   const selectedElementsRef = useRef<ChemicalElement[]>(selectedElements);
 
-  const { syncStateToChatGPT, scheduleSyncStateToChatGPT } = useWidgetStateSync({
+  const {
+    syncStateToChatGPT,
+    scheduleSyncStateToChatGPT,
+    widgetStateStatusText,
+  } = useWidgetStateSync({
     locale,
     messages,
     selectedElements,
@@ -321,6 +325,7 @@ export function useSimulationController({
     hasUsedPeriodicTableControl,
     isRecording,
     recordingResults,
+    widgetStateStatusText,
     syncStateToChatGPT,
     setTemperature,
     setPressure,

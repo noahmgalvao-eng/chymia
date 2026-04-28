@@ -733,8 +733,11 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, insets, onClose, onSetTe
   const mobilePanelTopGap = useIOSSheetLayout && isIPhoneLikeDevice()
     ? Math.max(IPHONE_PANEL_TOP_GAP_PX, insets.top + MOBILE_PANEL_VERTICAL_GAP_PX)
     : MOBILE_PANEL_VERTICAL_GAP_PX;
+  const mobilePanelBottomGap = useIOSSheetLayout
+    ? Math.max(MOBILE_PANEL_VERTICAL_GAP_PX, insets.bottom + MOBILE_PANEL_VERTICAL_GAP_PX)
+    : MOBILE_PANEL_VERTICAL_GAP_PX;
   const mobilePanelWidth = Math.max(0, viewportWidth - (MOBILE_PANEL_SAFE_MARGIN_PX * 2));
-  const mobilePanelHeight = Math.max(0, viewportHeight - mobilePanelTopGap - MOBILE_PANEL_VERTICAL_GAP_PX);
+  const mobilePanelHeight = Math.max(0, viewportHeight - mobilePanelTopGap - mobilePanelBottomGap);
   const resolvedPanelLeft = useIOSSheetLayout ? viewportLeft + MOBILE_PANEL_SAFE_MARGIN_PX : panelLeft;
   const resolvedPanelTop = useIOSSheetLayout ? viewportTop + mobilePanelTopGap : panelTop;
   const resolvedPanelWidth = useIOSSheetLayout ? mobilePanelWidth : defaultPanelWidth;

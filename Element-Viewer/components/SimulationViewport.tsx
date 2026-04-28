@@ -289,6 +289,7 @@ export default function SimulationViewport({
       {contextMenu && (
         <ElementPropertiesMenu
           data={contextMenu}
+          insets={insets}
           onClose={onCloseContextMenu}
           onSetTemperature={onContextMenuTemperatureChange}
           onSetPressure={onSetPressure}

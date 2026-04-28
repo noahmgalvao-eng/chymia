@@ -21,6 +21,12 @@ interface Props {
     element: ChemicalElement;
     physicsState: PhysicsState;
   };
+  insets: {
+    top: number;
+    bottom: number;
+    left: number;
+    right: number;
+  };
   onClose: () => void;
   onSetTemperature: (temp: number) => void;
   onSetPressure: (pressure: number) => void;
@@ -82,6 +88,7 @@ const PANEL_SAFE_MARGIN_PX = 12;
 const PANEL_MAX_WIDTH_PX = 432;
 const MOBILE_PANEL_SAFE_MARGIN_PX = 8;
 const MOBILE_PANEL_VERTICAL_GAP_PX = 8;
+const IPHONE_PANEL_TOP_GAP_PX = 56;
 
 const getViewportMetrics = () => {
   if (typeof window === 'undefined') {
@@ -136,6 +143,15 @@ const isIOSLikeDevice = () => {
   const userAgent = navigator.userAgent || '';
   return /iPad|iPhone|iPod/.test(userAgent)
     || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+};
+
+const isIPhoneLikeDevice = () => {
+  if (typeof navigator === 'undefined') {
+    return false;
+  }
+
+  const userAgent = navigator.userAgent || '';
+  return /iPhone|iPod/.test(userAgent);
 };
 
 const formatNumber = (value: number, locale: string, maxFractionDigits = 4) =>
@@ -295,7 +311,7 @@ const PhaseActionButton: React.FC<PhaseActionButtonProps> = ({
   );
 };
 
-const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperature, onSetPressure }) => {
+const ElementPropertiesMenu: React.FC<Props> = ({ data, insets, onClose, onSetTemperature, onSetPressure }) => {
   const { locale, messages, formatNumber } = useI18n();
   const { element, physicsState, x, y } = data;
   const [showFullDescription, setShowFullDescription] = useState(false);
@@ -714,10 +730,13 @@ const ElementPropertiesMenu: React.FC<Props> = ({ data, onClose, onSetTemperatur
     Math.max(0, viewportWidth - PANEL_SAFE_MARGIN_PX * 2),
   );
   const useIOSSheetLayout = isIOSLikeDevice() && isTouchDevice() && viewportWidth < 1024;
+  const mobilePanelTopGap = useIOSSheetLayout && isIPhoneLikeDevice()
+    ? Math.max(IPHONE_PANEL_TOP_GAP_PX, insets.top + MOBILE_PANEL_VERTICAL_GAP_PX)
+    : MOBILE_PANEL_VERTICAL_GAP_PX;
   const mobilePanelWidth = Math.max(0, viewportWidth - (MOBILE_PANEL_SAFE_MARGIN_PX * 2));
-  const mobilePanelHeight = Math.max(0, viewportHeight - (MOBILE_PANEL_VERTICAL_GAP_PX * 2));
+  const mobilePanelHeight = Math.max(0, viewportHeight - mobilePanelTopGap - MOBILE_PANEL_VERTICAL_GAP_PX);
   const resolvedPanelLeft = useIOSSheetLayout ? viewportLeft + MOBILE_PANEL_SAFE_MARGIN_PX : panelLeft;
-  const resolvedPanelTop = useIOSSheetLayout ? viewportTop + MOBILE_PANEL_VERTICAL_GAP_PX : panelTop;
+  const resolvedPanelTop = useIOSSheetLayout ? viewportTop + mobilePanelTopGap : panelTop;
   const resolvedPanelWidth = useIOSSheetLayout ? mobilePanelWidth : defaultPanelWidth;
   const resolvedPanelHeight = useIOSSheetLayout ? mobilePanelHeight : undefined;
   const resolvedPanelMaxHeight = useIOSSheetLayout ? mobilePanelHeight : availablePanelHeight;

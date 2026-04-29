@@ -20,6 +20,7 @@ export type SimulationChromeLayout = {
   controlIconStyle: React.CSSProperties;
   desktopUniformButtonClass: string | undefined;
   desktopLabelButtonClass: string | undefined;
+  isDesktopApp: boolean;
   leftControlTop: number;
   shouldCompactPeriodicTableButton: boolean;
   leftControlsPositionClass: 'absolute' | 'fixed';
@@ -39,6 +40,20 @@ function isIOSLikeTouchDevice(): boolean {
   const userAgent = navigator.userAgent || '';
   return /iPad|iPhone|iPod/.test(userAgent)
     || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+const DESKTOP_CHAT_RESERVE_MIN_PX = 88;
+const DESKTOP_CHAT_RESERVE_MAX_PX = 132;
+const DESKTOP_CHAT_RESERVE_RATIO = 0.12;
+const DESKTOP_CHAT_RESERVE_CSS = `clamp(${DESKTOP_CHAT_RESERVE_MIN_PX}px, ${DESKTOP_CHAT_RESERVE_RATIO * 100}dvh, ${DESKTOP_CHAT_RESERVE_MAX_PX}px)`;
+
+function getDesktopChatReservePx(height: number): number {
+  return Math.round(
+    Math.min(
+      DESKTOP_CHAT_RESERVE_MAX_PX,
+      Math.max(DESKTOP_CHAT_RESERVE_MIN_PX, height * DESKTOP_CHAT_RESERVE_RATIO),
+    ),
+  );
 }
 
 export function getSimulationChromeLayout({
@@ -76,13 +91,12 @@ export function getSimulationChromeLayout({
   const effectiveViewportHeight = typeof visualViewportHeight === 'number' && Number.isFinite(visualViewportHeight)
     ? (typeof maxHeight === 'number' ? Math.min(maxHeight, visualViewportHeight) : visualViewportHeight)
     : maxHeight;
-  const desktopBottomInset = isDesktopApp && isFullscreen ? 0.22 : 0;
   const iosBottomReserve = shouldUseIosFullscreenReserve ? Math.max(0, insets.bottom + 16) : 0;
   const computedContainerMarginBottom =
     shouldUseIosFullscreenReserve
       ? iosBottomReserve
       : isDesktopApp && isFullscreen
-      ? (typeof maxHeight === 'number' ? Math.max(0, maxHeight * desktopBottomInset) : '18vh')
+      ? (typeof effectiveViewportHeight === 'number' ? getDesktopChatReservePx(effectiveViewportHeight) : DESKTOP_CHAT_RESERVE_CSS)
       : undefined;
   const computedFullscreenHeight =
     isFullscreen
@@ -91,7 +105,7 @@ export function getSimulationChromeLayout({
               0,
               effectiveViewportHeight - (typeof computedContainerMarginBottom === 'number' ? computedContainerMarginBottom : 0),
             )
-          : (isDesktopApp ? '82vh' : undefined))
+          : (isDesktopApp ? `calc(100dvh - ${DESKTOP_CHAT_RESERVE_CSS})` : undefined))
       : undefined;
   const periodicBottomDockOffset = isDesktopApp
     ? 0
@@ -106,6 +120,7 @@ export function getSimulationChromeLayout({
     controlIconStyle: { width: controlIconSizePx, height: controlIconSizePx },
     desktopUniformButtonClass: isDesktopApp ? 'h-6 w-6 min-h-6 min-w-6' : undefined,
     desktopLabelButtonClass: isDesktopApp ? 'h-6 min-h-6 px-2 text-[10px]' : undefined,
+    isDesktopApp,
     leftControlTop: Math.max(0, (16 + insets.top) - (!isDesktopApp && isFullscreen ? 56 : 0)),
     shouldCompactPeriodicTableButton: count >= 5 || hasUsedPeriodicTableControl,
     leftControlsPositionClass: isStandaloneWebapp ? 'absolute' : 'fixed',

@@ -113,6 +113,7 @@ export default function SimulationViewport({
         reactionProducts={reactionProductsCache}
         onSelectReactionProduct={onSelectReactionProduct}
         bottomDockOffset={layout.periodicBottomDockOffset}
+        isDesktopApp={layout.isDesktopApp}
         isMultiSelect={isMultiSelect}
         onToggleMultiSelect={onToggleMultiSelect}
         isOpen={isSidebarOpen}

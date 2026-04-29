@@ -26,6 +26,7 @@ interface Props {
   reactionProducts: ChemicalElement[];
   onSelectReactionProduct: (el: ChemicalElement) => void;
   bottomDockOffset?: number;
+  isDesktopApp?: boolean;
   isMultiSelect: boolean;
   onToggleMultiSelect: () => void;
   isOpen: boolean;
@@ -261,6 +262,7 @@ const PeriodicTableSelector: React.FC<Props> = ({
   reactionProducts,
   onSelectReactionProduct,
   bottomDockOffset = 16,
+  isDesktopApp = false,
   isMultiSelect,
   onToggleMultiSelect,
   isOpen,
@@ -671,7 +673,13 @@ const PeriodicTableSelector: React.FC<Props> = ({
 
   return (
     <>
-      {isOpen && <div className="fixed inset-0 z-[110] bg-black/30" onClick={() => onOpenChange(false)} aria-hidden="true" />}
+      {isOpen && (
+        <div
+          className={`${isDesktopApp ? 'absolute' : 'fixed'} inset-0 z-[110] bg-black/30`}
+          onClick={() => onOpenChange(false)}
+          aria-hidden="true"
+        />
+      )}
 
       <div
         className="absolute inset-x-0 top-0 bottom-0 z-[120] flex items-end overflow-hidden px-0 pb-0"

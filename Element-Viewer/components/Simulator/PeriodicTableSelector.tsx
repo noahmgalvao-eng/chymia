@@ -675,14 +675,14 @@ const PeriodicTableSelector: React.FC<Props> = ({
     <>
       {isOpen && (
         <div
-          className={`${isDesktopApp ? 'absolute' : 'fixed'} inset-0 z-[110] bg-black/30`}
+          className="fixed inset-0 z-[110] bg-black/30"
           onClick={() => onOpenChange(false)}
           aria-hidden="true"
         />
       )}
 
       <div
-        className="absolute inset-x-0 top-0 bottom-0 z-[120] flex items-end overflow-hidden px-0 pb-0"
+        className="fixed inset-x-0 top-0 bottom-0 z-[120] flex items-end overflow-hidden px-0 pb-0"
         style={{
           paddingBottom: `${Math.max(bottomDockOffset, 0)}px`,
           pointerEvents: isOpen ? 'auto' : 'none',
@@ -711,340 +711,340 @@ const PeriodicTableSelector: React.FC<Props> = ({
               touchAction: 'manipulation',
             }}
           >
-          <div
-            className="mx-auto mb-0 flex w-full max-w-xl flex-col items-center"
-          >
             <div
-              ref={dragHandleRef}
-              className={`h-1.5 w-14 rounded-full bg-border ${isDraggingSheet ? 'cursor-grabbing' : 'cursor-grab'}`}
-              style={{ touchAction: 'none' }}
-              onPointerDown={handleDragStart}
-            />
-          </div>
-          <div className="mb-0 flex justify-center pt-0">
-            <Button className="h-8 min-h-8 px-2.5" color="secondary" variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
-              <ChevronDown className="size-4" />
-              {messages.periodicTable.hide}
-            </Button>
-          </div>
-
-          <div className={`mb-0.5 flex justify-end transition-opacity duration-200 ease-out ${isSliderActive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-            <Switch checked={showParticles} onCheckedChange={setShowParticles} label={messages.periodicTable.xRayVision} />
-          </div>
-
-          <div className={`mb-0.5 rounded-xl p-1.5 transition-opacity duration-200 ease-out ${isSliderActive ? 'border-transparent bg-transparent shadow-none' : 'border border-subtle bg-surface'}`}>
-            <div className={`${isSliderActive && activeSlider !== 'temperature' ? 'opacity-0 pointer-events-none absolute' : ''}`}>
-              <div className="mb-1 flex flex-col gap-2 min-[430px]:grid min-[430px]:grid-cols-[minmax(0,1fr)_auto] min-[430px]:items-center">
-                <p className="flex items-center gap-1 text-sm font-semibold text-default">
-                  <FileZip className="size-4" />
-                  {messages.periodicTable.temperature}
-                </p>
-                <div className="periodic-slider-meta">
-                  <div className="periodic-slider-value inline-flex h-8 min-h-8 max-w-full items-center justify-center rounded-full border border-default bg-surface-secondary px-3 text-sm font-semibold text-default">
-                    {currentTemperatureLabel}
-                  </div>
-                  <div className="periodic-slider-actions">
-                    <Button
-                      color="secondary"
-                      variant="outline"
-                      size="sm"
-                      uniform
-                      className="h-8 min-h-8 w-8 min-w-8 p-0"
-                      aria-label={messages.periodicTable.resetTemperatureTo(defaultTemperatureLabel)}
-                      onClick={() => {
-                        setTemperature(DEFAULT_TEMPERATURE_K);
-                        onTemperatureCommit();
-                      }}
-                    >
-                      <Reload className="size-4" />
-                    </Button>
-                    <Select
-                      options={TEMP_UNITS.map((unit) => ({ value: unit.value, label: unit.label }))}
-                      value={tempUnit}
-                      onChange={(next) => setTempUnit(next.value as TempUnit)}
-                      block={false}
-                      size="sm"
-                    />
-                  </div>
-                </div>
-              </div>
-              <div
-                className="periodic-slider-hitbox"
-                style={{ touchAction: 'none' }}
-                onTouchStart={() => activateSlider('temperature')}
-                onTouchEnd={handleTemperatureSliderRelease}
-                onTouchCancel={handleTemperatureSliderRelease}
-                onPointerDown={() => activateSlider('temperature')}
-                onPointerUp={handleTemperatureSliderRelease}
-                onPointerCancel={handleTemperatureSliderRelease}
-                onBlur={handleTemperatureSliderRelease}
-              >
-                <Slider
-                  value={temperature}
-                  min={0}
-                  max={6000}
-                  step={10}
-                  unit="K"
-                  className="hide-slider-value periodic-slider"
-                  trackColor="var(--red-100)"
-                  rangeColor="var(--red-500)"
-                  onChange={setTemperature}
-                />
-              </div>
-            </div>
-
-            <div
-              className={`mt-1 ${isSliderActive && activeSlider !== 'pressure' ? 'pointer-events-none opacity-0 invisible' : ''}`}
+              className="mx-auto mb-0 flex w-full max-w-xl flex-col items-center"
             >
-              <div className="mb-1 flex flex-col gap-2 min-[430px]:grid min-[430px]:grid-cols-[minmax(0,1fr)_auto] min-[430px]:items-center">
-                <p className="flex items-center gap-1 text-sm font-semibold text-default">
-                  <SpeedometerLatencySpeed className="size-4" />
-                  {messages.periodicTable.pressure}
-                </p>
-                <div className="periodic-slider-meta">
-                  <div className="periodic-slider-value inline-flex h-8 min-h-8 max-w-full items-center justify-center rounded-full border border-default bg-surface-secondary px-3 text-sm font-semibold text-default">
-                    {currentPressureLabel}
-                  </div>
-                  <div className="periodic-slider-actions">
-                    <Button
-                      color="secondary"
-                      variant="outline"
-                      size="sm"
-                      uniform
-                      className="h-8 min-h-8 w-8 min-w-8 p-0"
-                      aria-label={messages.periodicTable.resetPressureTo(defaultPressureLabel)}
-                      onClick={() => {
-                        setPressure(DEFAULT_PRESSURE_PA);
-                        onPressureCommit();
-                      }}
-                    >
-                      <Reload className="size-4" />
-                    </Button>
-                    <Select
-                      options={PRESSURE_UNITS.map((unit) => ({ value: unit.value, label: unit.label }))}
-                      value={pressureUnit}
-                      onChange={(next) => setPressureUnit(next.value as PressureUnit)}
-                      block={false}
-                      size="sm"
-                    />
+              <div
+                ref={dragHandleRef}
+                className={`h-1.5 w-14 rounded-full bg-border ${isDraggingSheet ? 'cursor-grabbing' : 'cursor-grab'}`}
+                style={{ touchAction: 'none' }}
+                onPointerDown={handleDragStart}
+              />
+            </div>
+            <div className="mb-0 flex justify-center pt-0">
+              <Button className="h-8 min-h-8 px-2.5" color="secondary" variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+                <ChevronDown className="size-4" />
+                {messages.periodicTable.hide}
+              </Button>
+            </div>
+
+            <div className={`mb-0.5 flex justify-end transition-opacity duration-200 ease-out ${isSliderActive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+              <Switch checked={showParticles} onCheckedChange={setShowParticles} label={messages.periodicTable.xRayVision} />
+            </div>
+
+            <div className={`mb-0.5 rounded-xl p-1.5 transition-opacity duration-200 ease-out ${isSliderActive ? 'border-transparent bg-transparent shadow-none' : 'border border-subtle bg-surface'}`}>
+              <div className={`${isSliderActive && activeSlider !== 'temperature' ? 'opacity-0 pointer-events-none absolute' : ''}`}>
+                <div className="mb-1 flex flex-col gap-2 min-[430px]:grid min-[430px]:grid-cols-[minmax(0,1fr)_auto] min-[430px]:items-center">
+                  <p className="flex items-center gap-1 text-sm font-semibold text-default">
+                    <FileZip className="size-4" />
+                    {messages.periodicTable.temperature}
+                  </p>
+                  <div className="periodic-slider-meta">
+                    <div className="periodic-slider-value inline-flex h-8 min-h-8 max-w-full items-center justify-center rounded-full border border-default bg-surface-secondary px-3 text-sm font-semibold text-default">
+                      {currentTemperatureLabel}
+                    </div>
+                    <div className="periodic-slider-actions">
+                      <Button
+                        color="secondary"
+                        variant="outline"
+                        size="sm"
+                        uniform
+                        className="h-8 min-h-8 w-8 min-w-8 p-0"
+                        aria-label={messages.periodicTable.resetTemperatureTo(defaultTemperatureLabel)}
+                        onClick={() => {
+                          setTemperature(DEFAULT_TEMPERATURE_K);
+                          onTemperatureCommit();
+                        }}
+                      >
+                        <Reload className="size-4" />
+                      </Button>
+                      <Select
+                        options={TEMP_UNITS.map((unit) => ({ value: unit.value, label: unit.label }))}
+                        value={tempUnit}
+                        onChange={(next) => setTempUnit(next.value as TempUnit)}
+                        block={false}
+                        size="sm"
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div
-                className="periodic-slider-hitbox"
-                style={{ touchAction: 'none' }}
-                onTouchStart={() => activateSlider('pressure')}
-                onTouchEnd={handlePressureSliderRelease}
-                onTouchCancel={handlePressureSliderRelease}
-                onPointerDown={() => activateSlider('pressure')}
-                onPointerUp={handlePressureSliderRelease}
-                onPointerCancel={handlePressureSliderRelease}
-                onBlur={handlePressureSliderRelease}
-              >
-                <Slider
-                  value={pressureSliderValue}
-                  min={-4}
-                  max={11}
-                  step={0.05}
-                  className="hide-slider-value periodic-slider"
-                  trackColor="var(--purple-100)"
-                  rangeColor="var(--purple-500)"
-                  onChange={(value) => setPressure(value <= -3.9 ? 0 : Math.pow(10, value))}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className={`periodic-toolbar mb-0.5 transition-opacity duration-200 ease-out ${isSliderActive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-            <div className="periodic-toolbar-mode">
-              <SegmentedControl
-                aria-label={messages.periodicTable.selectionMode}
-                value={isMultiSelect ? 'compare' : 'single'}
-                size="sm"
-                className="periodic-selection-control"
-                onChange={(next) => {
-                  if ((next === 'compare') !== isMultiSelect) {
-                    onToggleMultiSelect();
-                  }
-                }}
-              >
-                <SegmentedControl.Option value="single">{messages.periodicTable.single}</SegmentedControl.Option>
-                <SegmentedControl.Option value="compare">{messages.periodicTable.compare}</SegmentedControl.Option>
-              </SegmentedControl>
-            </div>
-
-            <div className="periodic-toolbar-legend">
-              <Popover>
-                <Popover.Trigger>
-                  <Button color="secondary" variant="outline" size="sm" className="periodic-legend-button">
-                    {messages.periodicTable.legend}
-                  </Button>
-                </Popover.Trigger>
-                <Popover.Content
-                  side="top"
-                  align="center"
-                  sideOffset={8}
-                  minWidth={210}
-                  maxWidth={248}
-                  className="periodic-legend-popover z-[130]"
+                <div
+                  className="periodic-slider-hitbox"
+                  style={{ touchAction: 'none' }}
+                  onTouchStart={() => activateSlider('temperature')}
+                  onTouchEnd={handleTemperatureSliderRelease}
+                  onTouchCancel={handleTemperatureSliderRelease}
+                  onPointerDown={() => activateSlider('temperature')}
+                  onPointerUp={handleTemperatureSliderRelease}
+                  onPointerCancel={handleTemperatureSliderRelease}
+                  onBlur={handleTemperatureSliderRelease}
                 >
-                  <div className="p-3">
-                    <ul className="periodic-legend-list">
-                      {LEGEND_ITEMS.map((item) => (
-                        <li key={item} className="periodic-legend-item">
-                          <span
-                            className="periodic-legend-swatch"
-                            style={{ '--legend-swatch-color': TONE_STYLES[item].base } as LegendSwatchStyle}
-                          />
-                          <p className="periodic-legend-label text-xs text-secondary">{messages.periodicTable.legendItems[item]}</p>
-                        </li>
-                      ))}
-                    </ul>
+                  <Slider
+                    value={temperature}
+                    min={0}
+                    max={6000}
+                    step={10}
+                    unit="K"
+                    className="hide-slider-value periodic-slider"
+                    trackColor="var(--red-100)"
+                    rangeColor="var(--red-500)"
+                    onChange={setTemperature}
+                  />
+                </div>
+              </div>
+
+              <div
+                className={`mt-1 ${isSliderActive && activeSlider !== 'pressure' ? 'pointer-events-none opacity-0 invisible' : ''}`}
+              >
+                <div className="mb-1 flex flex-col gap-2 min-[430px]:grid min-[430px]:grid-cols-[minmax(0,1fr)_auto] min-[430px]:items-center">
+                  <p className="flex items-center gap-1 text-sm font-semibold text-default">
+                    <SpeedometerLatencySpeed className="size-4" />
+                    {messages.periodicTable.pressure}
+                  </p>
+                  <div className="periodic-slider-meta">
+                    <div className="periodic-slider-value inline-flex h-8 min-h-8 max-w-full items-center justify-center rounded-full border border-default bg-surface-secondary px-3 text-sm font-semibold text-default">
+                      {currentPressureLabel}
+                    </div>
+                    <div className="periodic-slider-actions">
+                      <Button
+                        color="secondary"
+                        variant="outline"
+                        size="sm"
+                        uniform
+                        className="h-8 min-h-8 w-8 min-w-8 p-0"
+                        aria-label={messages.periodicTable.resetPressureTo(defaultPressureLabel)}
+                        onClick={() => {
+                          setPressure(DEFAULT_PRESSURE_PA);
+                          onPressureCommit();
+                        }}
+                      >
+                        <Reload className="size-4" />
+                      </Button>
+                      <Select
+                        options={PRESSURE_UNITS.map((unit) => ({ value: unit.value, label: unit.label }))}
+                        value={pressureUnit}
+                        onChange={(next) => setPressureUnit(next.value as PressureUnit)}
+                        block={false}
+                        size="sm"
+                      />
+                    </div>
                   </div>
-                </Popover.Content>
-              </Popover>
+                </div>
+                <div
+                  className="periodic-slider-hitbox"
+                  style={{ touchAction: 'none' }}
+                  onTouchStart={() => activateSlider('pressure')}
+                  onTouchEnd={handlePressureSliderRelease}
+                  onTouchCancel={handlePressureSliderRelease}
+                  onPointerDown={() => activateSlider('pressure')}
+                  onPointerUp={handlePressureSliderRelease}
+                  onPointerCancel={handlePressureSliderRelease}
+                  onBlur={handlePressureSliderRelease}
+                >
+                  <Slider
+                    value={pressureSliderValue}
+                    min={-4}
+                    max={11}
+                    step={0.05}
+                    className="hide-slider-value periodic-slider"
+                    trackColor="var(--purple-100)"
+                    rangeColor="var(--purple-500)"
+                    onChange={(value) => setPressure(value <= -3.9 ? 0 : Math.pow(10, value))}
+                  />
+                </div>
+              </div>
             </div>
 
-            <div className="periodic-toolbar-status">
-              <div className="periodic-toolbar-status-group">
-                <div className="flex shrink-0 -space-x-2">
-                  {selectedPreview.map((element) => {
-                    const toneStyle = getToneStyleBySymbol(element.symbol);
-                    const avatarStyle: PreviewAvatarStyle | undefined = toneStyle
-                      ? { '--preview-avatar-color': toneStyle.base }
-                      : element.category === 'reaction_product'
-                        ? { '--preview-avatar-color': element.visualDNA.solid.color }
-                        : undefined;
+            <div className={`periodic-toolbar mb-0.5 transition-opacity duration-200 ease-out ${isSliderActive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+              <div className="periodic-toolbar-mode">
+                <SegmentedControl
+                  aria-label={messages.periodicTable.selectionMode}
+                  value={isMultiSelect ? 'compare' : 'single'}
+                  size="sm"
+                  className="periodic-selection-control"
+                  onChange={(next) => {
+                    if ((next === 'compare') !== isMultiSelect) {
+                      onToggleMultiSelect();
+                    }
+                  }}
+                >
+                  <SegmentedControl.Option value="single">{messages.periodicTable.single}</SegmentedControl.Option>
+                  <SegmentedControl.Option value="compare">{messages.periodicTable.compare}</SegmentedControl.Option>
+                </SegmentedControl>
+              </div>
+
+              <div className="periodic-toolbar-legend">
+                <Popover>
+                  <Popover.Trigger>
+                    <Button color="secondary" variant="outline" size="sm" className="periodic-legend-button">
+                      {messages.periodicTable.legend}
+                    </Button>
+                  </Popover.Trigger>
+                  <Popover.Content
+                    side="top"
+                    align="center"
+                    sideOffset={8}
+                    minWidth={210}
+                    maxWidth={248}
+                    className="periodic-legend-popover z-[130]"
+                  >
+                    <div className="p-3">
+                      <ul className="periodic-legend-list">
+                        {LEGEND_ITEMS.map((item) => (
+                          <li key={item} className="periodic-legend-item">
+                            <span
+                              className="periodic-legend-swatch"
+                              style={{ '--legend-swatch-color': TONE_STYLES[item].base } as LegendSwatchStyle}
+                            />
+                            <p className="periodic-legend-label text-xs text-secondary">{messages.periodicTable.legendItems[item]}</p>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </Popover.Content>
+                </Popover>
+              </div>
+
+              <div className="periodic-toolbar-status">
+                <div className="periodic-toolbar-status-group">
+                  <div className="flex shrink-0 -space-x-2">
+                    {selectedPreview.map((element) => {
+                      const toneStyle = getToneStyleBySymbol(element.symbol);
+                      const avatarStyle: PreviewAvatarStyle | undefined = toneStyle
+                        ? { '--preview-avatar-color': toneStyle.base }
+                        : element.category === 'reaction_product'
+                          ? { '--preview-avatar-color': element.visualDNA.solid.color }
+                          : undefined;
+
+                      return (
+                        <span
+                          key={element.atomicNumber}
+                          className="periodic-preview-avatar flex size-6 shrink-0 items-center justify-center rounded-full border border-default text-[10px] font-semibold"
+                          style={avatarStyle}
+                          title={element.name}
+                        >
+                          {getAvatarLabel(element)}
+                        </span>
+                      );
+                    })}
+                  </div>
+                  <Badge color={isMultiSelect ? 'info' : 'secondary'} variant="soft">
+                    {selectedElements.length}/6
+                  </Badge>
+                </div>
+              </div>
+            </div>
+
+            <div className={`${isSliderActive ? 'opacity-0' : 'opacity-100'} transition-opacity duration-200 ease-out`}>
+              <div className="periodic-grid-scroll">
+                <div
+                  ref={gridRef}
+                  className={`periodic-grid ${isAndroidDevice ? 'periodic-grid-android-text' : ''}`}
+                  style={periodicGridStyle}
+                >
+                  {reactionProducts.length > 0 && (
+                    <div className="periodic-reaction-cluster">
+                      <p className="periodic-reaction-label">{messages.periodicTable.substances}</p>
+                      <div className="periodic-reaction-list">
+                        {reactionProducts.map((reaction) => {
+                          const isSelected = selectedElementIndexByAtomicNumber.has(reaction.atomicNumber);
+                          const reactionTone = TONE_STYLES.outrosMetais;
+                          const reactionColor = reactionTone.base;
+                          const textColor = getReadableTextColor(reactionColor);
+                          const reactionStyle: ReactionPillStyle = {
+                            backgroundColor: reactionColor,
+                            '--button-background-color': reactionTone.base,
+                            '--button-background-color-hover': reactionTone.hover,
+                            '--button-background-color-active': reactionTone.active,
+                            '--button-text-color': textColor,
+                            color: textColor,
+                            borderColor: 'color-mix(in oklab, #111111 24%, transparent)',
+                            '--button-ring-color': reactionTone.ring ?? getReactionRingColor(reactionColor, textColor),
+                          };
+
+                          return (
+                            <Button
+                              key={reaction.atomicNumber}
+                              color="secondary"
+                              variant="solid"
+                              size="sm"
+                              onClick={() => {
+                                if (shouldIgnoreSyntheticClick(reaction.atomicNumber, 'reaction_product')) {
+                                  return;
+                                }
+                                onSelectReactionProduct(reaction);
+                              }}
+                              onPointerDown={(event) => handleReactionPillPointerDown(event, reaction)}
+                              onTouchStart={hasPointerEvents ? undefined : (event) => handleReactionPillTouchStart(event, reaction)}
+                              className={`periodic-reaction-pill relative z-[5] text-xs font-semibold ${isSelected ? 'periodic-reaction-pill-selected' : ''}`}
+                              style={reactionStyle}
+                              title={reaction.name}
+                            >
+                              {reaction.symbol}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {visibleElements.map((el) => {
+                    const position = POSITION_BY_SYMBOL.get(el.symbol);
+                    if (!position) return null;
+
+                    const selectionIndex = selectedElementIndexByAtomicNumber.get(el.atomicNumber) ?? -1;
+                    const isSelected = selectionIndex !== -1;
+                    const tone = getElementTone(el.symbol, position);
+                    const toneStyle = TONE_STYLES[tone];
+                    const cellStyle: PeriodicCellStyle = {
+                      gridColumn: position.xpos,
+                      gridRow: position.ypos,
+                      marginTop: position.ypos === 9 ? '12px' : position.ypos === 10 ? '3px' : undefined,
+                      '--button-background-color': toneStyle.base,
+                      '--button-background-color-hover': toneStyle.hover,
+                      '--button-background-color-active': toneStyle.active,
+                      '--button-text-color': '#111111',
+                      '--button-ring-color': toneStyle.ring,
+                      '--periodic-cell-muted': 'color-mix(in oklab, #111111 62%, transparent)',
+                    };
 
                     return (
-                      <span
-                        key={element.atomicNumber}
-                        className="periodic-preview-avatar flex size-6 shrink-0 items-center justify-center rounded-full border border-default text-[10px] font-semibold"
-                        style={avatarStyle}
-                        title={element.name}
+                      <Button
+                        key={el.atomicNumber}
+                        color="secondary"
+                        variant="solid"
+                        size="sm"
+                        onClick={() => {
+                          if (shouldIgnoreSyntheticClick(el.atomicNumber, 'periodic_table')) {
+                            return;
+                          }
+                          onSelect(el);
+                        }}
+                        onPointerDown={(event) => handlePeriodicCellPointerDown(event, el)}
+                        onTouchStart={hasPointerEvents ? undefined : (event) => handlePeriodicCellTouchStart(event, el)}
+                        className={`periodic-cell ${isSelected ? 'periodic-cell-selected' : ''}`}
+                        style={cellStyle}
                       >
-                        {getAvatarLabel(element)}
-                      </span>
+                        <span
+                          className="periodic-cell-number pointer-events-none"
+                          style={{ color: 'var(--periodic-cell-muted)' }}
+                        >
+                          {el.atomicNumber}
+                        </span>
+                        <span className="periodic-cell-symbol">{el.symbol}</span>
+                        {isMultiSelect && isSelected && (
+                          <span className="periodic-cell-index pointer-events-none">
+                            {selectionIndex + 1}
+                          </span>
+                        )}
+                      </Button>
                     );
                   })}
                 </div>
-                <Badge color={isMultiSelect ? 'info' : 'secondary'} variant="soft">
-                  {selectedElements.length}/6
-                </Badge>
               </div>
             </div>
           </div>
-
-          <div className={`${isSliderActive ? 'opacity-0' : 'opacity-100'} transition-opacity duration-200 ease-out`}>
-            <div className="periodic-grid-scroll">
-              <div
-                ref={gridRef}
-                className={`periodic-grid ${isAndroidDevice ? 'periodic-grid-android-text' : ''}`}
-                style={periodicGridStyle}
-              >
-                {reactionProducts.length > 0 && (
-                  <div className="periodic-reaction-cluster">
-                    <p className="periodic-reaction-label">{messages.periodicTable.substances}</p>
-                    <div className="periodic-reaction-list">
-                      {reactionProducts.map((reaction) => {
-                        const isSelected = selectedElementIndexByAtomicNumber.has(reaction.atomicNumber);
-                        const reactionTone = TONE_STYLES.outrosMetais;
-                        const reactionColor = reactionTone.base;
-                        const textColor = getReadableTextColor(reactionColor);
-                        const reactionStyle: ReactionPillStyle = {
-                          backgroundColor: reactionColor,
-                          '--button-background-color': reactionTone.base,
-                          '--button-background-color-hover': reactionTone.hover,
-                          '--button-background-color-active': reactionTone.active,
-                          '--button-text-color': textColor,
-                          color: textColor,
-                          borderColor: 'color-mix(in oklab, #111111 24%, transparent)',
-                          '--button-ring-color': reactionTone.ring ?? getReactionRingColor(reactionColor, textColor),
-                        };
-
-                        return (
-                          <Button
-                            key={reaction.atomicNumber}
-                            color="secondary"
-                            variant="solid"
-                            size="sm"
-                            onClick={() => {
-                              if (shouldIgnoreSyntheticClick(reaction.atomicNumber, 'reaction_product')) {
-                                return;
-                              }
-                              onSelectReactionProduct(reaction);
-                            }}
-                            onPointerDown={(event) => handleReactionPillPointerDown(event, reaction)}
-                            onTouchStart={hasPointerEvents ? undefined : (event) => handleReactionPillTouchStart(event, reaction)}
-                            className={`periodic-reaction-pill relative z-[5] text-xs font-semibold ${isSelected ? 'periodic-reaction-pill-selected' : ''}`}
-                            style={reactionStyle}
-                            title={reaction.name}
-                          >
-                            {reaction.symbol}
-                          </Button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {visibleElements.map((el) => {
-                  const position = POSITION_BY_SYMBOL.get(el.symbol);
-                  if (!position) return null;
-
-                  const selectionIndex = selectedElementIndexByAtomicNumber.get(el.atomicNumber) ?? -1;
-                  const isSelected = selectionIndex !== -1;
-                  const tone = getElementTone(el.symbol, position);
-                  const toneStyle = TONE_STYLES[tone];
-                  const cellStyle: PeriodicCellStyle = {
-                    gridColumn: position.xpos,
-                    gridRow: position.ypos,
-                    marginTop: position.ypos === 9 ? '12px' : position.ypos === 10 ? '3px' : undefined,
-                    '--button-background-color': toneStyle.base,
-                    '--button-background-color-hover': toneStyle.hover,
-                    '--button-background-color-active': toneStyle.active,
-                    '--button-text-color': '#111111',
-                    '--button-ring-color': toneStyle.ring,
-                    '--periodic-cell-muted': 'color-mix(in oklab, #111111 62%, transparent)',
-                  };
-
-                  return (
-                    <Button
-                      key={el.atomicNumber}
-                      color="secondary"
-                      variant="solid"
-                      size="sm"
-                      onClick={() => {
-                        if (shouldIgnoreSyntheticClick(el.atomicNumber, 'periodic_table')) {
-                          return;
-                        }
-                        onSelect(el);
-                      }}
-                      onPointerDown={(event) => handlePeriodicCellPointerDown(event, el)}
-                      onTouchStart={hasPointerEvents ? undefined : (event) => handlePeriodicCellTouchStart(event, el)}
-                      className={`periodic-cell ${isSelected ? 'periodic-cell-selected' : ''}`}
-                      style={cellStyle}
-                    >
-                      <span
-                        className="periodic-cell-number pointer-events-none"
-                        style={{ color: 'var(--periodic-cell-muted)' }}
-                      >
-                        {el.atomicNumber}
-                      </span>
-                      <span className="periodic-cell-symbol">{el.symbol}</span>
-                      {isMultiSelect && isSelected && (
-                        <span className="periodic-cell-index pointer-events-none">
-                          {selectionIndex + 1}
-                        </span>
-                      )}
-                    </Button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+        </section>
       </div>
     </>
   );

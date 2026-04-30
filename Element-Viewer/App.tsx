@@ -124,7 +124,7 @@ function App() {
       />
   );
 
-  const embeddedViewport = (
+  const simulationShell = (
     <div
       data-simulation-shell="true"
       className={`relative w-screen overflow-hidden bg-surface text-default ${isFullscreen ? 'h-screen' : 'h-[600px]'}`}
@@ -137,6 +137,23 @@ function App() {
       {simulationViewport}
     </div>
   );
+
+  const embeddedViewport = isFullscreen && layout.isDesktopApp ? (
+    <div
+      className="relative flex w-screen flex-col overflow-hidden bg-surface text-default"
+      style={{
+        maxHeight: layout.computedViewportHeight,
+        height: layout.computedViewportHeight,
+      }}
+    >
+      {simulationShell}
+      <div
+        aria-hidden="true"
+        className="w-full shrink-0 bg-surface"
+        style={{ height: layout.desktopBottomSpacerHeight }}
+      />
+    </div>
+  ) : simulationShell;
 
   if (isStandaloneWebapp) {
     return (

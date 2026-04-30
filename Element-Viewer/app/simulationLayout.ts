@@ -16,6 +16,7 @@ export type SimulationInsets = {
 export type SimulationChromeLayout = {
   computedContainerMarginBottom: number | string | undefined;
   computedFullscreenHeight: number | string | undefined;
+  desktopBottomReserve: number | string | undefined;
   periodicBottomDockOffset: number;
   controlIconStyle: React.CSSProperties;
   desktopUniformButtonClass: string | undefined;
@@ -77,25 +78,26 @@ export function getSimulationChromeLayout({
   const effectiveViewportHeight = typeof visualViewportHeight === 'number' && Number.isFinite(visualViewportHeight)
     ? (typeof maxHeight === 'number' ? Math.min(maxHeight, visualViewportHeight) : visualViewportHeight)
     : maxHeight;
-  const desktopBottomInset = isDesktopApp && isFullscreen ? 0.22 : 0;
   const desktopBottomReserve =
     isDesktopApp && isFullscreen
-      ? (typeof maxHeight === 'number' ? Math.max(0, maxHeight * desktopBottomInset) : '18vh')
+      ? '22dvh'
       : undefined;
   const iosBottomReserve = shouldUseIosFullscreenReserve ? Math.max(0, insets.bottom + 16) : 0;
   const computedContainerMarginBottom =
     shouldUseIosFullscreenReserve
       ? iosBottomReserve
-      : desktopBottomReserve;
+      : undefined;
   const fullscreenHeightBase = isDesktopApp ? maxHeight : effectiveViewportHeight;
   const computedFullscreenHeight =
     isFullscreen
-      ? (typeof fullscreenHeightBase === 'number'
+      ? (isDesktopApp
+          ? 'calc(100dvh - 22dvh)'
+          : typeof fullscreenHeightBase === 'number'
           ? Math.max(
               0,
               fullscreenHeightBase - (typeof computedContainerMarginBottom === 'number' ? computedContainerMarginBottom : 0),
             )
-          : (isDesktopApp ? '82vh' : undefined))
+          : undefined)
       : undefined;
   const periodicBottomDockOffset = isDesktopApp
     ? 0
@@ -106,6 +108,7 @@ export function getSimulationChromeLayout({
   return {
     computedContainerMarginBottom,
     computedFullscreenHeight,
+    desktopBottomReserve,
     periodicBottomDockOffset,
     controlIconStyle: { width: controlIconSizePx, height: controlIconSizePx },
     desktopUniformButtonClass: isDesktopApp ? 'h-6 w-6 min-h-6 min-w-6' : undefined,

@@ -124,17 +124,28 @@ function App() {
       />
   );
 
+  const useDesktopFullscreenShell = isFullscreen && layout.isDesktopApp;
   const embeddedViewport = (
     <div
       data-simulation-shell="true"
-      className={`relative w-screen overflow-hidden bg-surface text-default ${isFullscreen ? 'h-screen' : 'h-[600px]'}`}
+      className={`${useDesktopFullscreenShell ? 'absolute inset-x-0 top-0' : 'relative'} w-screen overflow-hidden bg-surface text-default ${isFullscreen && !useDesktopFullscreenShell ? 'h-screen' : !isFullscreen ? 'h-[600px]' : ''}`}
       style={{
-        maxHeight: isFullscreen ? layout.computedFullscreenHeight : undefined,
-        height: isFullscreen ? layout.computedFullscreenHeight : undefined,
-        marginBottom: layout.computedContainerMarginBottom,
+        bottom: useDesktopFullscreenShell ? layout.desktopBottomReserve : undefined,
+        maxHeight: isFullscreen && !useDesktopFullscreenShell ? layout.computedFullscreenHeight : undefined,
+        height: isFullscreen && !useDesktopFullscreenShell ? layout.computedFullscreenHeight : undefined,
+        marginBottom: !useDesktopFullscreenShell ? layout.computedContainerMarginBottom : undefined,
       }}
     >
       {simulationViewport}
+    </div>
+  );
+
+  const desktopFullscreenViewport = (
+    <div
+      className="relative w-screen overflow-hidden bg-surface text-default"
+      style={{ height: '100dvh', maxHeight: '100dvh' }}
+    >
+      {embeddedViewport}
     </div>
   );
 
@@ -145,14 +156,14 @@ function App() {
           availableLocales={availableLocales}
           locale={locale}
           onLocaleChange={setLocale}
-          simulationViewport={simulationViewport}
+          simulationViewport={useDesktopFullscreenShell ? desktopFullscreenViewport : simulationViewport}
           websiteMessages={messages.website}
         />
       </React.Suspense>
     );
   }
 
-  return embeddedViewport;
+  return useDesktopFullscreenShell ? desktopFullscreenViewport : embeddedViewport;
 }
 
 export default App;

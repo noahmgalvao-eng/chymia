@@ -87,12 +87,20 @@ export function getSimulationChromeLayout({
     (!userAgent && isDesktopViewport) ||
     (userAgent?.device?.type === 'unknown' && isDesktopViewport);
   const shouldUseIosFullscreenReserve = !isDesktopApp && isFullscreen && isIOSLikeTouchDevice();
-  const visualViewportHeight = typeof window !== 'undefined'
-    ? (window.visualViewport?.height ?? window.innerHeight)
-    : undefined;
-  const effectiveViewportHeight = typeof visualViewportHeight === 'number' && Number.isFinite(visualViewportHeight)
-    ? (typeof maxHeight === 'number' ? Math.min(maxHeight, visualViewportHeight) : visualViewportHeight)
-    : maxHeight;
+  const viewportHeightCandidates = typeof window !== 'undefined'
+    ? [
+        window.innerHeight,
+        window.visualViewport?.height,
+        document.documentElement?.clientHeight,
+        typeof maxHeight === 'number' ? maxHeight : undefined,
+      ]
+    : [typeof maxHeight === 'number' ? maxHeight : undefined];
+  const effectiveViewportHeight = viewportHeightCandidates
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0)
+    .reduce<number | undefined>(
+      (smallest, value) => (typeof smallest === 'number' ? Math.min(smallest, value) : value),
+      undefined,
+    );
   const desktopBottomReserve = isDesktopApp && isFullscreen
     ? (typeof effectiveViewportHeight === 'number' ? getDesktopChatReservePx(effectiveViewportHeight) : DESKTOP_CHAT_RESERVE_CSS)
     : undefined;

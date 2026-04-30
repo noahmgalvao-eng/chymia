@@ -81,6 +81,31 @@ function App() {
     maxHeight,
     userAgent,
   });
+  const shouldLockDesktopViewport = isFullscreen && layout.isDesktopApp;
+
+  React.useEffect(() => {
+    if (!shouldLockDesktopViewport || typeof document === 'undefined') {
+      return;
+    }
+
+    const { documentElement, body } = document;
+    const previousHtmlOverflow = documentElement.style.overflow;
+    const previousBodyOverflow = body.style.overflow;
+    const previousHtmlOverscrollBehavior = documentElement.style.overscrollBehavior;
+    const previousBodyOverscrollBehavior = body.style.overscrollBehavior;
+
+    documentElement.style.overflow = 'hidden';
+    body.style.overflow = 'hidden';
+    documentElement.style.overscrollBehavior = 'none';
+    body.style.overscrollBehavior = 'none';
+
+    return () => {
+      documentElement.style.overflow = previousHtmlOverflow;
+      body.style.overflow = previousBodyOverflow;
+      documentElement.style.overscrollBehavior = previousHtmlOverscrollBehavior;
+      body.style.overscrollBehavior = previousBodyOverscrollBehavior;
+    };
+  }, [shouldLockDesktopViewport]);
 
   const simulationViewport = (
     <SimulationViewport
@@ -138,7 +163,7 @@ function App() {
     </div>
   );
 
-  const embeddedViewport = isFullscreen && layout.isDesktopApp ? (
+  const embeddedViewport = shouldLockDesktopViewport ? (
     <div
       className="relative flex w-screen flex-col overflow-hidden bg-surface text-default"
       style={{

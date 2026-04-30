@@ -83,7 +83,7 @@ function App() {
   });
   const shouldLockDesktopViewport = isFullscreen && layout.isDesktopApp;
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     if (!shouldLockDesktopViewport || typeof document === 'undefined') {
       return;
     }
@@ -165,7 +165,7 @@ function App() {
 
   const embeddedViewport = shouldLockDesktopViewport ? (
     <div
-      className="relative flex w-screen flex-col overflow-hidden bg-surface text-default"
+      className="fixed inset-x-0 top-0 flex w-screen flex-col overflow-hidden bg-surface text-default"
       style={{
         maxHeight: layout.computedViewportHeight,
         height: layout.computedViewportHeight,

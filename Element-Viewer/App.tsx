@@ -81,31 +81,6 @@ function App() {
     maxHeight,
     userAgent,
   });
-  const shouldLockDesktopViewport = isFullscreen && layout.isDesktopApp;
-
-  React.useLayoutEffect(() => {
-    if (!shouldLockDesktopViewport || typeof document === 'undefined') {
-      return;
-    }
-
-    const { documentElement, body } = document;
-    const previousHtmlOverflow = documentElement.style.overflow;
-    const previousBodyOverflow = body.style.overflow;
-    const previousHtmlOverscrollBehavior = documentElement.style.overscrollBehavior;
-    const previousBodyOverscrollBehavior = body.style.overscrollBehavior;
-
-    documentElement.style.overflow = 'hidden';
-    body.style.overflow = 'hidden';
-    documentElement.style.overscrollBehavior = 'none';
-    body.style.overscrollBehavior = 'none';
-
-    return () => {
-      documentElement.style.overflow = previousHtmlOverflow;
-      body.style.overflow = previousBodyOverflow;
-      documentElement.style.overscrollBehavior = previousHtmlOverscrollBehavior;
-      body.style.overscrollBehavior = previousBodyOverscrollBehavior;
-    };
-  }, [shouldLockDesktopViewport]);
 
   const simulationViewport = (
     <SimulationViewport
@@ -149,7 +124,7 @@ function App() {
       />
   );
 
-  const simulationShell = (
+  const embeddedViewport = (
     <div
       data-simulation-shell="true"
       className={`relative w-screen overflow-hidden bg-surface text-default ${isFullscreen ? 'h-screen' : 'h-[600px]'}`}
@@ -162,23 +137,6 @@ function App() {
       {simulationViewport}
     </div>
   );
-
-  const embeddedViewport = shouldLockDesktopViewport ? (
-    <div
-      className="fixed inset-x-0 top-0 flex w-screen flex-col overflow-hidden bg-surface text-default"
-      style={{
-        maxHeight: layout.computedViewportHeight,
-        height: layout.computedViewportHeight,
-      }}
-    >
-      {simulationShell}
-      <div
-        aria-hidden="true"
-        className="w-full shrink-0 bg-surface"
-        style={{ height: layout.desktopBottomSpacerHeight }}
-      />
-    </div>
-  ) : simulationShell;
 
   if (isStandaloneWebapp) {
     return (

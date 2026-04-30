@@ -15,9 +15,7 @@ export type SimulationInsets = {
 
 export type SimulationChromeLayout = {
   computedContainerMarginBottom: number | string | undefined;
-  computedViewportHeight: number | string | undefined;
   computedFullscreenHeight: number | string | undefined;
-  desktopBottomSpacerHeight: number | string | undefined;
   periodicBottomDockOffset: number;
   controlIconStyle: React.CSSProperties;
   desktopUniformButtonClass: string | undefined;
@@ -42,20 +40,6 @@ function isIOSLikeTouchDevice(): boolean {
   const userAgent = navigator.userAgent || '';
   return /iPad|iPhone|iPod/.test(userAgent)
     || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-}
-
-const DESKTOP_CHAT_RESERVE_MIN_PX = 88;
-const DESKTOP_CHAT_RESERVE_MAX_PX = 132;
-const DESKTOP_CHAT_RESERVE_RATIO = 0.12;
-const DESKTOP_CHAT_RESERVE_CSS = `clamp(${DESKTOP_CHAT_RESERVE_MIN_PX}px, ${DESKTOP_CHAT_RESERVE_RATIO * 100}dvh, ${DESKTOP_CHAT_RESERVE_MAX_PX}px)`;
-
-function getDesktopChatReservePx(height: number): number {
-  return Math.round(
-    Math.min(
-      DESKTOP_CHAT_RESERVE_MAX_PX,
-      Math.max(DESKTOP_CHAT_RESERVE_MIN_PX, height * DESKTOP_CHAT_RESERVE_RATIO),
-    ),
-  );
 }
 
 export function getSimulationChromeLayout({
@@ -87,43 +71,31 @@ export function getSimulationChromeLayout({
     (!userAgent && isDesktopViewport) ||
     (userAgent?.device?.type === 'unknown' && isDesktopViewport);
   const shouldUseIosFullscreenReserve = !isDesktopApp && isFullscreen && isIOSLikeTouchDevice();
-  const viewportHeightCandidates = typeof window !== 'undefined'
-    ? [
-        window.innerHeight,
-        window.visualViewport?.height,
-        document.documentElement?.clientHeight,
-        typeof maxHeight === 'number' ? maxHeight : undefined,
-      ]
-    : [typeof maxHeight === 'number' ? maxHeight : undefined];
-  const effectiveViewportHeight = viewportHeightCandidates
-    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0)
-    .reduce<number | undefined>(
-      (smallest, value) => (typeof smallest === 'number' ? Math.min(smallest, value) : value),
-      undefined,
-    );
-  const desktopBottomReserve = isDesktopApp && isFullscreen
-    ? (typeof effectiveViewportHeight === 'number' ? getDesktopChatReservePx(effectiveViewportHeight) : DESKTOP_CHAT_RESERVE_CSS)
+  const visualViewportHeight = typeof window !== 'undefined'
+    ? (window.visualViewport?.height ?? window.innerHeight)
     : undefined;
+  const effectiveViewportHeight = typeof visualViewportHeight === 'number' && Number.isFinite(visualViewportHeight)
+    ? (typeof maxHeight === 'number' ? Math.min(maxHeight, visualViewportHeight) : visualViewportHeight)
+    : maxHeight;
+  const desktopBottomInset = isDesktopApp && isFullscreen ? 0.22 : 0;
+  const desktopBottomReserve =
+    isDesktopApp && isFullscreen
+      ? (typeof maxHeight === 'number' ? Math.max(0, maxHeight * desktopBottomInset) : '18vh')
+      : undefined;
   const iosBottomReserve = shouldUseIosFullscreenReserve ? Math.max(0, insets.bottom + 16) : 0;
   const computedContainerMarginBottom =
     shouldUseIosFullscreenReserve
       ? iosBottomReserve
-      : undefined;
-  const fullscreenReservedBottom = typeof desktopBottomReserve !== 'undefined'
-    ? desktopBottomReserve
-    : computedContainerMarginBottom;
+      : desktopBottomReserve;
+  const fullscreenHeightBase = isDesktopApp ? maxHeight : effectiveViewportHeight;
   const computedFullscreenHeight =
     isFullscreen
-      ? (typeof effectiveViewportHeight === 'number'
+      ? (typeof fullscreenHeightBase === 'number'
           ? Math.max(
               0,
-              effectiveViewportHeight - (typeof fullscreenReservedBottom === 'number' ? fullscreenReservedBottom : 0),
+              fullscreenHeightBase - (typeof computedContainerMarginBottom === 'number' ? computedContainerMarginBottom : 0),
             )
-          : (isDesktopApp ? `calc(100dvh - ${DESKTOP_CHAT_RESERVE_CSS})` : undefined))
-      : undefined;
-  const computedViewportHeight =
-    isFullscreen && isDesktopApp
-      ? (typeof effectiveViewportHeight === 'number' ? effectiveViewportHeight : '100dvh')
+          : (isDesktopApp ? '82vh' : undefined))
       : undefined;
   const periodicBottomDockOffset = isDesktopApp
     ? 0
@@ -133,9 +105,7 @@ export function getSimulationChromeLayout({
 
   return {
     computedContainerMarginBottom,
-    computedViewportHeight,
     computedFullscreenHeight,
-    desktopBottomSpacerHeight: desktopBottomReserve,
     periodicBottomDockOffset,
     controlIconStyle: { width: controlIconSizePx, height: controlIconSizePx },
     desktopUniformButtonClass: isDesktopApp ? 'h-6 w-6 min-h-6 min-w-6' : undefined,

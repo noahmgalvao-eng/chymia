@@ -31,6 +31,9 @@ export function registerElementViewerTools(server) {
           .optional()
           .describe('New temperature in Kelvin. If not specified, leave empty.'),
       }),
+      readOnly: true,
+      openWorld: false,
+      destructive: false,
       _meta: {
         'openai/outputTemplate': 'ui://widget/element-viewer.html',
         'openai/widgetAccessible': true,
@@ -110,6 +113,9 @@ export function registerElementViewerTools(server) {
           })
           .describe('Triple point of the substance.'),
       }),
+      readOnly: true,
+      openWorld: false,
+      destructive: false,
       _meta: {
         'openai/outputTemplate': 'ui://widget/element-viewer.html',
         'openai/widgetAccessible': true,

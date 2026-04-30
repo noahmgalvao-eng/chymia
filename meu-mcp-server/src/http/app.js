@@ -21,6 +21,10 @@ app.get('/', (_req, res) => {
   res.status(200).type('text/plain').send('Element Viewer MCP Server Running');
 });
 
+app.get('/.well-known/openai-apps-challenge', (_req, res) => {
+  res.type('text/plain').send('HnvuTfzLWJ0c_pnvWu-QASOleX0VCTb7d5ZDtr9T4bU'); 
+});
+
 app.all('/mcp', async (req, res) => {
   applyMcpResponseHeaders(res);
 

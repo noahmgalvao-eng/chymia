@@ -32,7 +32,7 @@ export function registerElementViewerTools(server) {
           .describe('New temperature in Kelvin. If not specified, leave empty.'),
       }),
       annotations: {
-        readOnlyHint: true,
+        readOnlyHint: false,
         openWorldHint: false,
         destructiveHint: false
       },
@@ -113,7 +113,7 @@ export function registerElementViewerTools(server) {
           .describe('Triple point of the substance.'),
       }),
        annotations: {
-        readOnlyHint: true,
+        readOnlyHint: false,
         openWorldHint: false,
         destructiveHint: false
       },

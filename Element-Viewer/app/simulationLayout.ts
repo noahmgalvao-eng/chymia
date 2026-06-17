@@ -43,6 +43,12 @@ function isIOSLikeTouchDevice(): boolean {
     || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 }
 
+function getPositiveFiniteNumber(value: number | null | undefined): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+    ? value
+    : undefined;
+}
+
 export function getSimulationChromeLayout({
   count,
   hasUsedPeriodicTableControl,
@@ -72,12 +78,13 @@ export function getSimulationChromeLayout({
     (!userAgent && isDesktopViewport) ||
     (userAgent?.device?.type === 'unknown' && isDesktopViewport);
   const shouldUseIosFullscreenReserve = !isDesktopApp && isFullscreen && isIOSLikeTouchDevice();
+  const positiveMaxHeight = getPositiveFiniteNumber(maxHeight);
   const visualViewportHeight = typeof window !== 'undefined'
-    ? (window.visualViewport?.height ?? window.innerHeight)
+    ? getPositiveFiniteNumber(window.visualViewport?.height) ?? getPositiveFiniteNumber(window.innerHeight)
     : undefined;
-  const effectiveViewportHeight = typeof visualViewportHeight === 'number' && Number.isFinite(visualViewportHeight)
-    ? (typeof maxHeight === 'number' ? Math.min(maxHeight, visualViewportHeight) : visualViewportHeight)
-    : maxHeight;
+  const effectiveViewportHeight = visualViewportHeight
+    ? (positiveMaxHeight ? Math.min(positiveMaxHeight, visualViewportHeight) : visualViewportHeight)
+    : positiveMaxHeight;
   const desktopBottomReserve =
     isDesktopApp && isFullscreen
       ? '22dvh'
@@ -87,7 +94,7 @@ export function getSimulationChromeLayout({
     shouldUseIosFullscreenReserve
       ? iosBottomReserve
       : undefined;
-  const fullscreenHeightBase = isDesktopApp ? maxHeight : effectiveViewportHeight;
+  const fullscreenHeightBase = isDesktopApp ? positiveMaxHeight : effectiveViewportHeight;
   const computedFullscreenHeight =
     isFullscreen
       ? (isDesktopApp
@@ -97,7 +104,7 @@ export function getSimulationChromeLayout({
               0,
               fullscreenHeightBase - (typeof computedContainerMarginBottom === 'number' ? computedContainerMarginBottom : 0),
             )
-          : undefined)
+          : '100dvh')
       : undefined;
   const periodicBottomDockOffset = isDesktopApp
     ? 0

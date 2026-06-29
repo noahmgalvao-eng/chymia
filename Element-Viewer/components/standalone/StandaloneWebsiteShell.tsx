@@ -16,7 +16,6 @@ import {
 } from '../../app/standalone';
 import { useStandaloneRouting } from '../../hooks/useStandaloneRouting';
 import type { Messages, SupportedLocale } from '../../i18n/types';
-import chymiaLogoDark from '../../website/chemlablogo-dark.png';
 import chymiaLogo from '../../website/chemlablogo.png';
 import qrCodeImage from '../../website/qr-code.png';
 import privacyPolicyText from '../../website/privacy policy.txt?raw';
@@ -273,12 +272,7 @@ export default function StandaloneWebsiteShell({
               <img
                 src={chymiaLogo}
                 alt={websiteMessages.logoAlt}
-                className="standalone-brand-image standalone-brand-image-light h-full w-full object-contain"
-              />
-              <img
-                src={chymiaLogoDark}
-                alt={websiteMessages.logoAlt}
-                className="standalone-brand-image standalone-brand-image-dark h-full w-full object-contain"
+                className="standalone-brand-image h-full w-full object-contain"
               />
             </span>
             <span className="flex flex-col">

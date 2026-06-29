@@ -557,7 +557,8 @@
 
 .standalone-header {
   border-bottom: 1px solid color-mix(in oklab, var(--color-border-default, #d5dce5) 86%, transparent);
-  background: #FEFEFE;
+  background: color-mix(in oklab, var(--color-surface, #ffffff) 78%, transparent);
+  backdrop-filter: blur(18px);
 }
 
 .standalone-brand {
@@ -578,10 +579,6 @@
   display: block;
   image-rendering: -webkit-optimize-contrast;
   image-rendering: crisp-edges;
-}
-
-.standalone-brand-image-dark {
-  display: none;
 }
 
 .standalone-header-link,
@@ -822,19 +819,6 @@
     width: 100%;
     justify-content: flex-end;
   }
-}
-
-[data-theme='dark'] .standalone-header {
-  border-bottom-color: color-mix(in oklab, #091211 72%, var(--color-border-default, #384457) 28%);
-  background: #091211;
-}
-
-[data-theme='dark'] .standalone-brand-image-light {
-  display: none;
-}
-
-[data-theme='dark'] .standalone-brand-image-dark {
-  display: block;
 }
 
 [data-theme='dark'] .standalone-header-link,
